@@ -1,27 +1,12 @@
-import json
-
 from torch.utils.data import Dataset
 from transformers import AutoTokenizer, AutoModel
 import torch
+from DataLoader import JsonDataLoader
 
-java_per_line = [
-    {
-        "code": "public SecureRandom getObject() throws Exception {",
-        "vulnerable": False
-    },
-    {
-        "code": "SecureRandom rnd = SecureRandom.getInstance(algorithm);",
-        "vulnerable": True
-    },
-    {
-        "code": "return rnd;",
-        "vulnerable": False
-    },
-    {
-        "code": "}",
-        "vulnerable": False
-    }
-]
+dataloader = JsonDataLoader("./data/original_method.json")
+vulnerabilities = dataloader.get_prepared_data()
+
+
 class InputFeatures(object):
     """A single training/test features for a example."""
 
@@ -37,7 +22,7 @@ class InputFeatures(object):
 
 def convert_examples_to_features(java_line, tokenizer):
     # source
-    code_tokens = tokenizer.tokenize(java_line["code"], padding="max_length", max_length=256)
+    code_tokens = tokenizer.tokenize(java_line["code"], padding="max_length", max_length=60)
     source_tokens = [tokenizer.cls_token] + code_tokens + [tokenizer.sep_token]
     source_ids = tokenizer.convert_tokens_to_ids(source_tokens)
     padding_length = -1 - len(source_ids)
@@ -48,8 +33,9 @@ def convert_examples_to_features(java_line, tokenizer):
 class TextDataset(Dataset):
     def __init__(self, tokenizer):
         self.examples = []
-        for line in java_per_line:
-            self.examples.append(convert_examples_to_features(line, tokenizer))
+        for vulnerability in vulnerabilities: #TODO: Think if a double foreach is needed or if we can get rid of the vulnerability level
+            for java_line in vulnerability.get("vulData"):
+                self.examples.append(convert_examples_to_features(java_line, tokenizer))
 
     def __len__(self):
         return len(self.examples)
