@@ -11,65 +11,52 @@ class InputFeatures(object):
     """A single training/test features for a example."""
 
     def __init__(self,
-                 input_tokens,
-                 input_ids,
+                 context_embeddings,
                  label,
                  ):
-        self.input_tokens = input_tokens
-        self.input_ids = input_ids
+        self.context_embeddings = context_embeddings
         self.label = label
 
 
-def convert_examples_to_features(java_line, tokenizer):
-    # source
-    code_tokens = tokenizer.tokenize(java_line["code"], padding="max_length", max_length=60)
-    source_tokens = [tokenizer.cls_token] + code_tokens + [tokenizer.sep_token]
-    source_ids = tokenizer.convert_tokens_to_ids(source_tokens)
-    padding_length = -1 - len(source_ids)
-    source_ids += [tokenizer.pad_token_id] * padding_length
-    return InputFeatures(source_tokens, source_ids, java_line['vulnerable'])
+def convert_line_to_features(java_line, tokenizer, model):
+    code_tokens = tokenizer.tokenize(java_line["code"])
+    tokens=[tokenizer.cls_token] + code_tokens + [tokenizer.sep_token]
+    tokens_ids = tokenizer.convert_tokens_to_ids(tokens)
+    context_embeddings = model(torch.tensor(tokens_ids)[None, :])[0]
+    #print("Context Embeddings")
+    #print(context_embeddings)
+    #print(context_embeddings.shape)
+    context_embeddings_with_equal_length = torch.mean(context_embeddings, dim=1)
+    #print("After applying mean to get same length:")
+    #print(context_embeddings_with_equal_length)
+    #print(context_embeddings_with_equal_length.shape)
+    return InputFeatures(context_embeddings_with_equal_length, java_line['vulnerable'])
 
 
 class TextDataset(Dataset):
-    def __init__(self, tokenizer):
+    def __init__(self, tokenizer, model):
         self.examples = []
         for vulnerability in vulnerabilities: #TODO: Think if a double foreach is needed or if we can get rid of the vulnerability level
             for java_line in vulnerability.get("vulData"):
-                self.examples.append(convert_examples_to_features(java_line, tokenizer))
+                self.examples.append(convert_line_to_features(java_line, tokenizer, model))
 
     def __len__(self):
         return len(self.examples)
 
     def __getitem__(self, i):
-        return torch.tensor(self.examples[i].input_ids), torch.tensor(self.examples[i].label)
+        return self.examples[i].context_embeddings, torch.tensor(self.examples[i].label)
 
 
 tokenizer = AutoTokenizer.from_pretrained("microsoft/codebert-base")
 # BertTokenizer.from_pretrained('bert-base-uncased') ---- Could also be used
-#model = AutoModel.from_pretrained("microsoft/codebert-base")
-nl_tokens=tokenizer.tokenize("return maximum value")
+model = AutoModel.from_pretrained("microsoft/codebert-base")
 
-dataset = TextDataset(tokenizer)
+dataset = TextDataset(tokenizer, model)
 print("  Num examples = %d", len(dataset))
 for x in range(4):
     print(dataset.__getitem__(x))
 
 
-#tensored_data = []
-#for line in java_per_line:
-    #code_tokens_per_line=tokenizer.tokenize(line["code"], padding='max_length')
-    #print(code_tokens_per_line)
-
-    #tokens=[tokenizer.cls_token]+nl_tokens+[tokenizer.sep_token]+code_tokens_per_line+[tokenizer.eos_token]
-
-    #tokens_ids = tokenizer.convert_tokens_to_ids(tokens)
-    #labels = torch.tensor([1]).unsqueeze(0)
-    #print(labels)
-    #input_feature = convert_examples_to_features(line, tokenizer)
-   # tensor = torch.tensor(input_feature)
-
-   # context_embeddings=model(torch.tensor(tokens_ids)[None,:])[0]
- #  print(context_embeddings)
-#print(tensored_data)
-
-#InputFeatures with assigned Label
+# TODO:
+# Split Dataset into Test and Training (balanced!)
+# Train Model -> e.g. using RandomForestClassifier from scikit-learn
