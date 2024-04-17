@@ -2,6 +2,11 @@ from torch.utils.data import Dataset
 from transformers import AutoTokenizer, AutoModel
 import torch
 from DataLoader import JsonDataLoader
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+import numpy as np
+from sklearn.metrics import accuracy_score, classification_report
+from imblearn.under_sampling import RandomUnderSampler
 
 dataloader = JsonDataLoader("./data/original_method.json")
 vulnerabilities = dataloader.get_prepared_data()
@@ -44,19 +49,60 @@ class TextDataset(Dataset):
         return len(self.examples)
 
     def __getitem__(self, i):
-        return self.examples[i].context_embeddings, torch.tensor(self.examples[i].label)
+        return self.examples[i].context_embeddings, self.examples[i].label
 
 
 tokenizer = AutoTokenizer.from_pretrained("microsoft/codebert-base")
 # BertTokenizer.from_pretrained('bert-base-uncased') ---- Could also be used
 model = AutoModel.from_pretrained("microsoft/codebert-base")
 
+print("Started Feature Engineering...")
 dataset = TextDataset(tokenizer, model)
 print("  Num examples = %d", len(dataset))
 for x in range(4):
     print(dataset.__getitem__(x))
 
+print("Finished Feature Engineering...")
 
-# TODO:
-# Split Dataset into Test and Training (balanced!)
-# Train Model -> e.g. using RandomForestClassifier from scikit-learn
+
+def split_into_train_and_test(total_data):
+    X = [] # 2D array where each row is a feature vector for one line
+    y = [] # 1D array where each label belongs to one feature vector
+
+    # store feature vectors and labels in arrays
+    for i in range(len(total_data)):
+        feature_vector, label = total_data[i]
+        X.append(feature_vector.detach().numpy())
+        y.append(int(label))
+
+    X = np.array(X)
+    y = np.array(y)
+
+    # split into training and test set: 80/20 and randomly -> TODO: later use K-fold Cross Validation
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)  # change random_state for different seed
+
+    X_train = np.squeeze(X_train, axis=1)
+    X_test = np.squeeze(X_test, axis=1)
+
+    # balance the training set
+    randomUnderSampler = RandomUnderSampler(random_state=0)
+    X_train_balanced, y_train_balanced = randomUnderSampler.fit_resample(X_train, y_train)
+
+    return X_train_balanced, y_train_balanced, X_test, y_test
+
+
+print("Preparing training and test set...")
+X_train_balanced, y_train_balanced, X_test, y_test = split_into_train_and_test(dataset)
+
+print("Training classifier...")
+classifier = RandomForestClassifier(random_state=0, n_estimators=100) #change random_state for different seed; n_estimators is amount of trees
+classifier.fit(X_train_balanced, y_train_balanced)
+
+print("Testing classifier...")
+y_pred = classifier.predict(X_test)
+accuracy = accuracy_score(y_test, y_pred)
+
+print("Result Metrics:")
+print("Accuracy: ", accuracy)
+print(classification_report(y_test, y_pred))
+
