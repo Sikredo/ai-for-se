@@ -2,6 +2,11 @@ from torch.utils.data import Dataset
 from transformers import AutoTokenizer, AutoModel
 import torch
 from DataLoader import JsonDataLoader
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+import numpy as np
+from sklearn.metrics import accuracy_score, classification_report
+from imblearn.under_sampling import RandomUnderSampler
 
 dataloader = JsonDataLoader("./data/original_method.json")
 vulnerabilities = dataloader.get_prepared_data()
@@ -11,65 +16,93 @@ class InputFeatures(object):
     """A single training/test features for a example."""
 
     def __init__(self,
-                 input_tokens,
-                 input_ids,
+                 context_embeddings,
                  label,
                  ):
-        self.input_tokens = input_tokens
-        self.input_ids = input_ids
+        self.context_embeddings = context_embeddings
         self.label = label
 
 
-def convert_examples_to_features(java_line, tokenizer):
-    # source
-    code_tokens = tokenizer.tokenize(java_line["code"], padding="max_length", max_length=60)
-    source_tokens = [tokenizer.cls_token] + code_tokens + [tokenizer.sep_token]
-    source_ids = tokenizer.convert_tokens_to_ids(source_tokens)
-    padding_length = -1 - len(source_ids)
-    source_ids += [tokenizer.pad_token_id] * padding_length
-    return InputFeatures(source_tokens, source_ids, java_line['vulnerable'])
+def convert_line_to_features(java_line, tokenizer, model):
+    code_tokens = tokenizer.tokenize(java_line["code"])
+    tokens=[tokenizer.cls_token] + code_tokens + [tokenizer.sep_token]
+    tokens_ids = tokenizer.convert_tokens_to_ids(tokens)
+    context_embeddings = model(torch.tensor(tokens_ids)[None, :])[0]
+    #print("Context Embeddings")
+    #print(context_embeddings)
+    #print(context_embeddings.shape)
+    context_embeddings_with_equal_length = torch.mean(context_embeddings, dim=1)
+    #print("After applying mean to get same length:")
+    #print(context_embeddings_with_equal_length)
+    #print(context_embeddings_with_equal_length.shape)
+    return InputFeatures(context_embeddings_with_equal_length, java_line['vulnerable'])
 
 
 class TextDataset(Dataset):
-    def __init__(self, tokenizer):
+    def __init__(self, tokenizer, model):
         self.examples = []
         for vulnerability in vulnerabilities: #TODO: Think if a double foreach is needed or if we can get rid of the vulnerability level
             for java_line in vulnerability.get("vulData"):
-                self.examples.append(convert_examples_to_features(java_line, tokenizer))
+                self.examples.append(convert_line_to_features(java_line, tokenizer, model))
 
     def __len__(self):
         return len(self.examples)
 
     def __getitem__(self, i):
-        return torch.tensor(self.examples[i].input_ids), torch.tensor(self.examples[i].label)
+        return self.examples[i].context_embeddings, self.examples[i].label
 
 
 tokenizer = AutoTokenizer.from_pretrained("microsoft/codebert-base")
 # BertTokenizer.from_pretrained('bert-base-uncased') ---- Could also be used
-#model = AutoModel.from_pretrained("microsoft/codebert-base")
-nl_tokens=tokenizer.tokenize("return maximum value")
+model = AutoModel.from_pretrained("microsoft/codebert-base")
 
-dataset = TextDataset(tokenizer)
+print("Started Feature Engineering...")
+dataset = TextDataset(tokenizer, model)
 print("  Num examples = %d", len(dataset))
 for x in range(4):
     print(dataset.__getitem__(x))
 
+print("Finished Feature Engineering...")
 
-#tensored_data = []
-#for line in java_per_line:
-    #code_tokens_per_line=tokenizer.tokenize(line["code"], padding='max_length')
-    #print(code_tokens_per_line)
 
-    #tokens=[tokenizer.cls_token]+nl_tokens+[tokenizer.sep_token]+code_tokens_per_line+[tokenizer.eos_token]
+def split_into_train_and_test(total_data):
+    X = [] # 2D array where each row is a feature vector for one line
+    y = [] # 1D array where each label belongs to one feature vector
 
-    #tokens_ids = tokenizer.convert_tokens_to_ids(tokens)
-    #labels = torch.tensor([1]).unsqueeze(0)
-    #print(labels)
-    #input_feature = convert_examples_to_features(line, tokenizer)
-   # tensor = torch.tensor(input_feature)
+    # store feature vectors and labels in arrays
+    for i in range(len(total_data)):
+        feature_vector, label = total_data[i]
+        X.append(feature_vector.detach().numpy())
+        y.append(int(label))
 
-   # context_embeddings=model(torch.tensor(tokens_ids)[None,:])[0]
- #  print(context_embeddings)
-#print(tensored_data)
+    X = np.array(X)
+    y = np.array(y)
 
-#InputFeatures with assigned Label
+    # split into training and test set: 80/20 and randomly -> TODO: later use K-fold Cross Validation
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)  # change random_state for different seed
+
+    X_train = np.squeeze(X_train, axis=1)
+    X_test = np.squeeze(X_test, axis=1)
+
+    # balance the training set
+    randomUnderSampler = RandomUnderSampler(random_state=0)
+    X_train_balanced, y_train_balanced = randomUnderSampler.fit_resample(X_train, y_train)
+
+    return X_train_balanced, y_train_balanced, X_test, y_test
+
+
+print("Preparing training and test set...")
+X_train_balanced, y_train_balanced, X_test, y_test = split_into_train_and_test(dataset)
+
+print("Training classifier...")
+classifier = RandomForestClassifier(random_state=0, n_estimators=100) #change random_state for different seed; n_estimators is amount of trees
+classifier.fit(X_train_balanced, y_train_balanced)
+
+print("Testing classifier...")
+y_pred = classifier.predict(X_test)
+accuracy = accuracy_score(y_test, y_pred)
+
+print("Result Metrics:")
+print("Accuracy: ", accuracy)
+print(classification_report(y_test, y_pred))
+
