@@ -4,7 +4,10 @@ import os
 
 class JsonDataLoader:
     json_java_map = {
-        "./data/original_method.json": "_original_method"
+        "./data/original_method.json": "_original_method",
+        "./data/rename_only.json": "_rename_only",
+        "./data/code_structure_change_only.json": "_code_structure_change_only",
+        "./data/full_transformation.json": "_full_transformation"
     }
     def __init__(self, filepath):
         self.filepath = filepath

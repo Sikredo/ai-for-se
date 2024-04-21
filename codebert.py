@@ -8,8 +8,19 @@ import numpy as np
 from sklearn.metrics import accuracy_score, classification_report
 from imblearn.under_sampling import RandomUnderSampler
 
-dataloader = JsonDataLoader("./data/original_method.json")
-vulnerabilities = dataloader.get_prepared_data()
+datafiles = [
+    "./data/original_method.json",
+    "./data/rename_only.json",
+    "./data/code_structure_change_only.json",
+    "./data/full_transformation.json"
+]
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+vulnerabilities = list()
+for datafile in datafiles:
+    dataloader = JsonDataLoader(datafile)
+    vulnerabilities.extend(dataloader.get_prepared_data())
 
 
 class InputFeatures(object):
@@ -41,8 +52,11 @@ def convert_line_to_features(java_line, tokenizer, model):
 class TextDataset(Dataset):
     def __init__(self, tokenizer, model):
         self.examples = []
+        self.vul_lines = 0
         for vulnerability in vulnerabilities: #TODO: Think if a double foreach is needed or if we can get rid of the vulnerability level
             for java_line in vulnerability.get("vulData"):
+                if java_line["vulnerable"]:
+                    self.vul_lines += 1
                 self.examples.append(convert_line_to_features(java_line, tokenizer, model))
 
     def __len__(self):
@@ -55,13 +69,13 @@ class TextDataset(Dataset):
 tokenizer = AutoTokenizer.from_pretrained("microsoft/codebert-base")
 # BertTokenizer.from_pretrained('bert-base-uncased') ---- Could also be used
 model = AutoModel.from_pretrained("microsoft/codebert-base")
+model.to(device)
 
 print("Started Feature Engineering...")
 dataset = TextDataset(tokenizer, model)
-print("  Num examples = %d", len(dataset))
-for x in range(4):
-    print(dataset.__getitem__(x))
-
+print(f"  Num examples(lines) = {len(dataset)}")
+print(f"    - Vulnerable lines = {dataset.vul_lines}")
+print(f"    - NonVulnerable lines = {len(dataset) - dataset.vul_lines}")
 print("Finished Feature Engineering...")
 
 
@@ -104,5 +118,5 @@ accuracy = accuracy_score(y_test, y_pred)
 
 print("Result Metrics:")
 print("Accuracy: ", accuracy)
-print(classification_report(y_test, y_pred))
+print(classification_report(y_test, y_pred, target_names=["non-vulnerable", "vulnerable"]))
 
