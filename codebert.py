@@ -34,30 +34,35 @@ class InputFeatures(object):
         self.label = label
 
 
-def convert_line_to_features(java_line, tokenizer, model):
-    code_tokens = tokenizer.tokenize(java_line["code"])
-    tokens=[tokenizer.cls_token] + code_tokens + [tokenizer.sep_token]
-    tokens_ids = tokenizer.convert_tokens_to_ids(tokens)
-    context_embeddings = model(torch.tensor(tokens_ids)[None, :])[0]
-    #print("Context Embeddings")
-    #print(context_embeddings)
-    #print(context_embeddings.shape)
-    context_embeddings_with_equal_length = torch.mean(context_embeddings, dim=1)
-    #print("After applying mean to get same length:")
-    #print(context_embeddings_with_equal_length)
-    #print(context_embeddings_with_equal_length.shape)
-    return InputFeatures(context_embeddings_with_equal_length, java_line['vulnerable'])
+def convert_line_to_features(context_lines, tokenizer, model):
+    all_embeddings = []
+    for java_line in context_lines:
+        code_tokens = tokenizer.tokenize(java_line["code"])
+        tokens=[tokenizer.cls_token] + code_tokens + [tokenizer.sep_token]
+        tokens_ids = tokenizer.convert_tokens_to_ids(tokens)
+        context_embeddings = model(torch.tensor(tokens_ids)[None, :])[0]
+        context_embeddings_with_equal_length = torch.mean(context_embeddings, dim=1)
+        all_embeddings.append(context_embeddings_with_equal_length)
+    combined_embeddings = torch.cat(all_embeddings, dim=0)
+    is_vulnerable = False
+    for line in context_lines:
+        if line["vulnerable"]:
+            is_vulnerable = True
+            break
+    return InputFeatures(combined_embeddings, is_vulnerable)
 
 
 class TextDataset(Dataset):
-    def __init__(self, tokenizer, model):
+    def __init__(self, tokenizer, model, context_size=2):
         self.examples = []
         self.vul_lines = 0
         for vulnerability in vulnerabilities: #TODO: Think if a double foreach is needed or if we can get rid of the vulnerability level
-            for java_line in vulnerability.get("vulData"):
-                if java_line["vulnerable"]:
+            vul_data = vulnerability.get("vulData")
+            for i in range(len(vul_data)):
+                context_lines = vul_data[max(i-context_size, 0):i] + [vul_data[i]] + vul_data[i+1:i+1+context_size]
+                if vul_data[i]["vulnerable"]:
                     self.vul_lines += 1
-                self.examples.append(convert_line_to_features(java_line, tokenizer, model))
+            self.examples.append(convert_line_to_features(context_lines, tokenizer, model))
 
     def __len__(self):
         return len(self.examples)
@@ -78,6 +83,20 @@ print(f"    - Vulnerable lines = {dataset.vul_lines}")
 print(f"    - NonVulnerable lines = {len(dataset) - dataset.vul_lines}")
 print("Finished Feature Engineering...")
 
+training = [
+    {"function": "1",
+     "code": [
+         {"line": "public void load_json(self):",
+            "vulnerable": False},
+        {"line": "public void load_json(self):",
+            "vulnerable": True},
+        {"line": "public void load_json(self):",
+            "vulnerable": False},
+        {"line": "public void load_json(self):",
+            "vulnerable": False}
+     ]
+}
+]
 
 def split_into_train_and_test(total_data):
     X = [] # 2D array where each row is a feature vector for one line
