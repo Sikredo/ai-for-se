@@ -1,3 +1,4 @@
+from sklearn.model_selection import train_test_split
 from transformers import AutoTokenizer, AutoModel
 import torch
 from DataLoader import JsonDataLoader
@@ -15,11 +16,32 @@ datafiles = [
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+def get_training_and_test_data_per_function(input_json):
+    # Initialize an output list to store the new format
+    output = []
+
+    # Iterate over each vulnerability entry
+    for index, vul in enumerate(input_json):
+        function_id = vul['vulName']
+
+        # Convert the code structure
+        code_lines = [{'line': line['code'], 'vulnerable': line['vulnerable']} for line in vul['vulData']]
+
+        # Create a dictionary for each function and append to the output list
+        output.append({
+            'function': function_id,
+            'code': code_lines
+        })
+
+    # Perform an 80/20 split on the code lines
+    train, test = train_test_split(output, test_size=0.2, random_state=42)
+    return train, test
+
 vulnerabilities = list()
 for datafile in datafiles:
     dataloader = JsonDataLoader(datafile)
     vulnerabilities.extend(dataloader.get_prepared_data())
-
+training, test = get_training_and_test_data_per_function(vulnerabilities)
 # TODO:
 #  #remove lines that do not contain statements from the dataset, so that less truncation is necessary
 
@@ -55,112 +77,6 @@ def balance_data(training_set):
 
     return balanced_training_set
 
-
-################################################
-# using hard-coded example balanced trainings and test set
-# TODO: use real data from dataset
-################################################
-
-training = [
-    {"function": "1",
-     "code": [
-         {"line": "public static void checkDirectoryTraversal(@NonNull Path parentPath, @NonNull Path pathToCheck) {",
-          "vulnerable": False},
-         {"line": "Assert.notNull(parentPath, \"Parent path must not be null\");",
-          "vulnerable": False},
-         {"line": "Assert.notNull(pathToCheck, \"Path to check must not be null\");",
-          "vulnerable": False},
-         {"line": "if (pathToCheck.startsWith(parentPath.normalize())) {",
-          "vulnerable": True},
-         {"line": "return;",
-          "vulnerable": False},
-         {"line": "}",
-          "vulnerable": False},
-         {
-             "line": "throw new ForbiddenException(\"You do not have permission to access \" + pathToCheck).setErrorData(pathToCheck);",
-             "vulnerable": False},
-         {"line": "}",
-          "vulnerable": False}
-
-     ]
-     },
-    {"function": "2",
-     "code": [
-         {"line": "public static void checkDirectoryTraversal(@NonNull Path parentPath, @NonNull Path pathToCheck) {",
-          "vulnerable": False},
-         {"line": "Assert.notNull(parentPath, \"Parent path must not be null\");",
-          "vulnerable": False},
-         {"line": "Assert.notNull(pathToCheck, \"Path to check must not be null\");",
-          "vulnerable": False},
-         {"line": "if (pathToCheck.startsWith(parentPath.normalize())) {",
-          "vulnerable": True},
-         {"line": "return;",
-          "vulnerable": False},
-         {"line": "}",
-          "vulnerable": False},
-         {
-             "line": "throw new ForbiddenException(\"You do not have permission to access \" + pathToCheck).setErrorData(pathToCheck);",
-             "vulnerable": False},
-         {"line": "}",
-          "vulnerable": False}
-
-     ]
-     }
-]
-
-test = [
-    {"function": "1",
-     "code": [
-         {"line": "public static void checkDirectoryTraversal(@NonNull Path parentPath, @NonNull Path pathToCheck) {",
-          "vulnerable": False},
-         {"line": "Assert.notNull(parentPath, \"Parent path must not be null\");",
-          "vulnerable": False},
-         {"line": "Assert.notNull(pathToCheck, \"Path to check must not be null\");",
-          "vulnerable": False},
-         {"line": "Assert.notNull(parentPath, \"Parent path must not be null\");",
-          "vulnerable": False},
-         {"line": "Assert.notNull(pathToCheck, \"Path to check must not be null\");",
-          "vulnerable": False},
-         {"line": "if (pathToCheck.startsWith(parentPath.normalize())) {",
-          "vulnerable": True},
-         {"line": "return;",
-          "vulnerable": False},
-         {"line": "}",
-          "vulnerable": False},
-         {
-             "line": "throw new ForbiddenException(\"You do not have permission to access \" + pathToCheck).setErrorData(pathToCheck);",
-             "vulnerable": False},
-         {"line": "}",
-          "vulnerable": False}
-
-     ]
-     },
-    {"function": "2",
-     "code": [
-         {"line": "public static void checkDirectoryTraversal(@NonNull Path parentPath, @NonNull Path pathToCheck) {",
-          "vulnerable": False},
-         {"line": "Assert.notNull(parentPath, \"Parent path must not be null\");",
-          "vulnerable": False},
-         {"line": "Assert.notNull(pathToCheck, \"Path to check must not be null\");",
-          "vulnerable": False},
-         {"line": "Assert.notNull(parentPath, \"Parent path must not be null\");",
-          "vulnerable": False},
-         {"line": "Assert.notNull(pathToCheck, \"Path to check must not be null\");",
-          "vulnerable": False},
-         {"line": "if (pathToCheck.startsWith(parentPath.normalize())) {",
-          "vulnerable": True},
-         {"line": "return;",
-          "vulnerable": False},
-         {"line": "}",
-          "vulnerable": False},
-         {
-             "line": "throw new ForbiddenException(\"You do not have permission to access \" + pathToCheck).setErrorData(pathToCheck);",
-             "vulnerable": False},
-         {"line": "}",
-          "vulnerable": False}
-     ]
-     }
-]
 
 tokenizer = AutoTokenizer.from_pretrained("microsoft/codebert-base")
 model = AutoModel.from_pretrained("microsoft/codebert-base")
@@ -206,9 +122,10 @@ def prepare_input_data(data):
     input_ids = []
     attention_masks = []
     labels = []
+    max_length = max(len(line["line"]) for function in data for line in function["code"])  # Determine the maximum length
     for function in data:
         code_lines = [line["line"] for line in function["code"]]
-        tokens = tokenizer(code_lines, add_special_tokens=True, return_tensors='pt', padding=True, truncation=True)
+        tokens = tokenizer(code_lines, add_special_tokens=True, return_tensors='pt',max_length=max_length, padding='max_length', truncation=True)
         input_ids.append(tokens['input_ids'])
         attention_masks.append(tokens['attention_mask'])
         labels.extend([int(line['vulnerable']) for line in function["code"]])
@@ -235,7 +152,7 @@ Training the Model:
 -> Multiple iterations for updating weights and biases to optimize them
 """
 classifier.train()
-num_epochs = 10  # TODO: tune!
+num_epochs = 3  # TODO: tune!
 for epoch in range(num_epochs):
     print("Epoch", epoch + 1, "/", num_epochs)
     epoch_loss = 0.0
