@@ -4,7 +4,7 @@ from transformers import AutoTokenizer, AutoModel
 import torch
 from DataLoader import JsonDataLoader
 from tqdm import tqdm
-from sklearn.metrics import accuracy_score, classification_report, roc_curve, auc
+from sklearn.metrics import accuracy_score, classification_report, roc_curve, auc, matthews_corrcoef
 import copy
 import random
 
@@ -213,6 +213,13 @@ for i in tqdm(range(len(test_input_ids)), desc="Testing"):
 accuracy = accuracy_score(true_labels, all_predictions)
 print("\nEvaluation: \nAccuracy=", accuracy)
 print(classification_report(true_labels, all_predictions, target_names=["non-vul", "vul"]))
+
+#MCC: (-> takes imbalance of testset into account)
+#1: perfect prediction
+#0: random prediction
+#-1: perfectly inverse prediction
+mcc = matthews_corrcoef(true_labels, all_predictions)
+print("MCC: ", mcc)
 
 #ROC graph
 fpr, tpr, _ = roc_curve(true_labels, all_probabilities)
