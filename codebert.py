@@ -30,30 +30,26 @@ def get_training_and_test_data_per_function(input_json):
     train, test = train_test_split(output, test_size=0.2, random_state=42)
     return train, test
 
-"""
-computes the average portion of vulnerable lines per function in the training set and based on that
-calculates the optimal class weights for balancing the training set
-"""
-def get_optimal_label_weights(training_data):
-    vulnerable_portions = []
+def oversample_vulnerable_lines(training_set):
+    oversampled = []
 
-    for func in training_data:
+    for func in training_set:
         code_lines = func['code']
-        total_lines = len(code_lines)
-        vulnerable_lines = sum(1 for line in code_lines if line['vulnerable'])
+        new_code_lines = []
 
-        if total_lines > 0:
-            vulnerable_portion = vulnerable_lines / total_lines
-            vulnerable_portions.append(vulnerable_portion)
+        vulnerable_lines = [line for line in code_lines if line['vulnerable']]
+        non_vulnerable_lines = [line for line in code_lines if not line['vulnerable']]
+        oversample_count = len(non_vulnerable_lines) // len(vulnerable_lines)
 
-    if vulnerable_portions:
-        average_portion = sum(vulnerable_portions) / len(vulnerable_portions)
-    else:
-        average_portion = 0.0
+        for line in code_lines:
+            new_code_lines.append(line)
+            if line['vulnerable']:
+                oversampled_lines = random.choices(vulnerable_lines, k=oversample_count)
+                new_code_lines.extend(oversampled_lines)
 
-    optimal_class_weights = [1.0 / (1 - average_portion), 1.0 / average_portion]
+        oversampled.append({'function': func['function'], 'code': new_code_lines})
 
-    return optimal_class_weights
+    return oversampled
 
 vulnerabilities = list()
 dataloader = CDataLoader("./bigvul-data/data.json")
@@ -61,7 +57,7 @@ vulnerabilities_ = dataloader.get_prepared_data()
 #vulnerabilities.extend(vulnerabilities_[0:250])
 vulnerabilities.extend(vulnerabilities_[-500:])
 training, test = get_training_and_test_data_per_function(vulnerabilities)
-label_weights = get_optimal_label_weights(training)
+training = oversample_vulnerable_lines(training)
 
 tokenizer = AutoTokenizer.from_pretrained("microsoft/codebert-base")
 model = AutoModel.from_pretrained("microsoft/codebert-base")
@@ -111,12 +107,7 @@ train_input_ids, train_attention_masks, train_labels = prepare_input_data(traini
 print("Start preparing test data...")
 test_input_ids, test_attention_masks, test_labels = prepare_input_data(test, 512 )
 
-classes = np.array([0, 1])
-class_weights = compute_class_weight('balanced', classes=classes, y=train_labels.numpy())
-class_weights = torch.tensor(class_weights, dtype=torch.float).to(device)
-
-# Include class weights in loss function
-loss_fn = torch.nn.CrossEntropyLoss(weight=class_weights)
+loss_fn = torch.nn.CrossEntropyLoss()
 
 class VulnerabilityDataset(Dataset):
     def __init__(self, input_ids, attention_masks, labels):
@@ -138,11 +129,8 @@ class VulnerabilityDataset(Dataset):
 train_dataset = VulnerabilityDataset(train_input_ids, train_attention_masks, train_labels)
 test_dataset = VulnerabilityDataset(test_input_ids, test_attention_masks, test_labels)
 
-sampling_weights = [label_weights[label] for label in train_labels]
-sampler = WeightedRandomSampler(sampling_weights, len(sampling_weights))
-
 # Create DataLoader with sampler
-train_loader = DataLoader(train_dataset, sampler=sampler, batch_size=16)
+train_loader = DataLoader(train_dataset, batch_size=16)
 test_loader = DataLoader(test_dataset, batch_size=8)
 
 # optimizer for model parameters by computing gradient descent
