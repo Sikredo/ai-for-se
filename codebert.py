@@ -4,7 +4,6 @@ from sklearn.model_selection import train_test_split
 from sklearn.utils import compute_class_weight
 from transformers import AutoTokenizer, AutoModel
 import torch
-
 from CDataLoader import CDataLoader
 from JavaDataLoader import JsonDataLoader
 from tqdm import tqdm
@@ -31,12 +30,38 @@ def get_training_and_test_data_per_function(input_json):
     train, test = train_test_split(output, test_size=0.2, random_state=42)
     return train, test
 
+"""
+computes the average portion of vulnerable lines per function in the training set and based on that
+calculates the optimal class weights for balancing the training set
+"""
+def get_optimal_label_weights(training_data):
+    vulnerable_portions = []
+
+    for func in training_data:
+        code_lines = func['code']
+        total_lines = len(code_lines)
+        vulnerable_lines = sum(1 for line in code_lines if line['vulnerable'])
+
+        if total_lines > 0:
+            vulnerable_portion = vulnerable_lines / total_lines
+            vulnerable_portions.append(vulnerable_portion)
+
+    if vulnerable_portions:
+        average_portion = sum(vulnerable_portions) / len(vulnerable_portions)
+    else:
+        average_portion = 0.0
+
+    optimal_class_weights = [1.0 / (1 - average_portion), 1.0 / average_portion]
+
+    return optimal_class_weights
+
 vulnerabilities = list()
 dataloader = CDataLoader("./bigvul-data/data.json")
 vulnerabilities_ = dataloader.get_prepared_data()
-vulnerabilities.extend(vulnerabilities_[0:250])
-vulnerabilities.extend(vulnerabilities_[-250:])
+#vulnerabilities.extend(vulnerabilities_[0:250])
+vulnerabilities.extend(vulnerabilities_[-500:])
 training, test = get_training_and_test_data_per_function(vulnerabilities)
+label_weights = get_optimal_label_weights(training)
 
 tokenizer = AutoTokenizer.from_pretrained("microsoft/codebert-base")
 model = AutoModel.from_pretrained("microsoft/codebert-base")
@@ -86,12 +111,11 @@ train_input_ids, train_attention_masks, train_labels = prepare_input_data(traini
 print("Start preparing test data...")
 test_input_ids, test_attention_masks, test_labels = prepare_input_data(test, 512 )
 
-# Compute class weights
 classes = np.array([0, 1])
 class_weights = compute_class_weight('balanced', classes=classes, y=train_labels.numpy())
 class_weights = torch.tensor(class_weights, dtype=torch.float).to(device)
 
-# Update the loss function to include class weights
+# Include class weights in loss function
 loss_fn = torch.nn.CrossEntropyLoss(weight=class_weights)
 
 class VulnerabilityDataset(Dataset):
@@ -114,11 +138,8 @@ class VulnerabilityDataset(Dataset):
 train_dataset = VulnerabilityDataset(train_input_ids, train_attention_masks, train_labels)
 test_dataset = VulnerabilityDataset(test_input_ids, test_attention_masks, test_labels)
 
-# Compute sample weights
-sample_weights = [1.0 if label == 0 else 3.0 for label in train_labels]  # Adjust the weight ratio as needed
-
-# Create sampler
-sampler = WeightedRandomSampler(sample_weights, len(sample_weights))
+sampling_weights = [label_weights[label] for label in train_labels]
+sampler = WeightedRandomSampler(sampling_weights, len(sampling_weights))
 
 # Create DataLoader with sampler
 train_loader = DataLoader(train_dataset, sampler=sampler, batch_size=16)
