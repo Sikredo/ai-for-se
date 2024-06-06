@@ -7,7 +7,6 @@
 #SBATCH --cpus-per-task=4                # Number of CPU cores per task
 #SBATCH --mem=16G                        # Total memory limit
 #SBATCH --gpus=1                         # Number of GPUs required
-#SBATCH --partition=gpu                  # Partition name
 
 # Activate the conda environment
 conda activate ai-for-se-grp4
