@@ -5,7 +5,6 @@
 #SBATCH --error=error_%j.txt             # Error log
 #SBATCH --ntasks=1                       # Run on a single CPU
 #SBATCH --cpus-per-task=4                # Number of CPU cores per task
-#SBATCH --mem=16G                        # Total memory limit
 #SBATCH --gpus=1                         # Number of GPUs required
 
 # Activate the conda environment
