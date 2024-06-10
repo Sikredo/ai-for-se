@@ -114,7 +114,7 @@ train_dataset = VulnerabilityDataset(train_input_ids, train_attention_masks, tra
 test_dataset = VulnerabilityDataset(test_input_ids, test_attention_masks, test_labels)
 
 # Compute sample weights
-sample_weights = [1.0 if label == 0 else 3.0 for label in train_labels]  # Adjust the weight ratio as needed
+sample_weights = [1.0 if label == 0 else 5.0 for label in train_labels]  # Adjust the weight ratio as needed
 
 # Create sampler
 sampler = WeightedRandomSampler(sample_weights, len(sample_weights))
