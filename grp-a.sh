@@ -7,6 +7,8 @@
 #SBATCH --cpus-per-task=4                # Number of CPU cores per task
 #SBATCH --gpus=1                         # Number of GPUs required
 
+eval "$(conda shell bash hook)"
+
 # Activate the conda environment
 conda activate ai-for-se-grp4
 
