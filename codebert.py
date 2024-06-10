@@ -35,7 +35,7 @@ vulnerabilities = list()
 dataloader = CDataLoader("./bigvul-data/data.json")
 vulnerabilities_ = dataloader.get_prepared_data()
 #vulnerabilities.extend(vulnerabilities_[0:250])
-vulnerabilities.extend(vulnerabilities_[-500:])
+vulnerabilities.extend(vulnerabilities_[-5000:])
 training, test = get_training_and_test_data_per_function(vulnerabilities)
 
 tokenizer = AutoTokenizer.from_pretrained("microsoft/codebert-base")
