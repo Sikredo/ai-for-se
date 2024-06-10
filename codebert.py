@@ -34,8 +34,8 @@ def get_training_and_test_data_per_function(input_json):
 vulnerabilities = list()
 dataloader = CDataLoader("./bigvul-data/data.json")
 vulnerabilities_ = dataloader.get_prepared_data()
-#vulnerabilities.extend(vulnerabilities_[0:250])
-vulnerabilities.extend(vulnerabilities_[-5000:])
+vulnerabilities.extend(vulnerabilities_[0:2500])
+vulnerabilities.extend(vulnerabilities_[-2500:])
 training, test = get_training_and_test_data_per_function(vulnerabilities)
 
 tokenizer = AutoTokenizer.from_pretrained("microsoft/codebert-base")
@@ -122,7 +122,7 @@ train_loader = DataLoader(train_dataset, sampler=sampler, batch_size=16)
 test_loader = DataLoader(test_dataset, batch_size=8)
 
 # optimizer for model parameters by computing gradient descent
-optimizer =AdamW(classifier.parameters(), lr=2e-5)
+optimizer =AdamW(classifier.parameters(), lr=2e-4)
 
 scaler = torch.cuda.amp.GradScaler()
 
