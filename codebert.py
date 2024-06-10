@@ -2,7 +2,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from sklearn.model_selection import train_test_split
 from sklearn.utils import compute_class_weight
-from transformers import AutoTokenizer, AutoModel
+from transformers import AutoTokenizer, AutoModel, get_linear_schedule_with_warmup, AdamW
 import torch
 
 from CDataLoader import CDataLoader
@@ -77,7 +77,6 @@ def prepare_input_data(data, max_length):
     print("\nAll functions processed.")
     return input_ids, attention_masks, labels
 
-
 max_length = max(max(len(line["line"]) for function in training for line in function["code"]),
                 max(len(line["line"]) for function in test for line in function["code"]))
 
@@ -125,10 +124,15 @@ train_loader = DataLoader(train_dataset, sampler=sampler, batch_size=16)
 test_loader = DataLoader(test_dataset, batch_size=8)
 
 # optimizer for model parameters by computing gradient descent
-optimizer = torch.optim.AdamW(classifier.parameters(), lr=2e-5)
+optimizer =AdamW(classifier.parameters(), lr=2e-5)
+
+scaler = torch.cuda.amp.GradScaler()
+
 
 classifier.train()
 num_epochs = 10
+number_of_training_steps = len(train_loader) * num_epochs
+scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0, num_training_steps=number_of_training_steps)
 for epoch in range(num_epochs):
     print("Epoch", epoch + 1, "/", num_epochs)
     epoch_loss = 0.0
@@ -141,11 +145,14 @@ for epoch in range(num_epochs):
         labels = batch['label'].to(device)
 
         optimizer.zero_grad()
-        raw_scores = classifier(input_ids=input_ids, attention_mask=attention_mask)
-        loss = loss_fn(raw_scores, labels)
+        with torch.cuda.amp.autocast():
+            raw_scores = classifier(input_ids=input_ids, attention_mask=attention_mask)
+            loss = loss_fn(raw_scores, labels)
 
-        loss.backward()
-        optimizer.step()
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.step(scheduler)
+        scaler.update()
 
         epoch_loss += loss.item()
         _, predicted_labels = torch.max(raw_scores, 1)
