@@ -85,12 +85,11 @@ train_input_ids, train_attention_masks, train_labels = prepare_input_data(traini
 print("Start preparing test data...")
 test_input_ids, test_attention_masks, test_labels = prepare_input_data(test, 512 )
 
-# Compute class weights
+# Compute class weights for loss function
 classes = np.array([0, 1])
 class_weights = compute_class_weight('balanced', classes=classes, y=train_labels.numpy())
 class_weights = torch.tensor(class_weights, dtype=torch.float).to(device)
 
-# Update the loss function to include class weights
 loss_fn = torch.nn.CrossEntropyLoss(weight=class_weights)
 
 class VulnerabilityDataset(Dataset):
@@ -109,17 +108,16 @@ class VulnerabilityDataset(Dataset):
             'label': self.labels[idx]
         }
 
-# Create the dataset
 train_dataset = VulnerabilityDataset(train_input_ids, train_attention_masks, train_labels)
 test_dataset = VulnerabilityDataset(test_input_ids, test_attention_masks, test_labels)
 
-# Compute sample weights
-sample_weights = [1.0 if label == 0 else 5.0 for label in train_labels]  # Adjust the weight ratio as needed
-
-# Create sampler
+# sample weights for sampling imbalanced training set
+class_counts = np.bincount(train_labels.numpy())
+class_weights = 1.0 / class_counts
+sample_weights = np.array([class_weights[label] for label in train_labels.numpy()])
+sample_weights /= np.mean(sample_weights)
 sampler = WeightedRandomSampler(sample_weights, len(sample_weights))
 
-# Create DataLoader with sampler
 train_loader = DataLoader(train_dataset, sampler=sampler, batch_size=16)
 test_loader = DataLoader(test_dataset, batch_size=8)
 
