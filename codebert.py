@@ -151,8 +151,9 @@ for epoch in range(num_epochs):
 
         scaler.scale(loss).backward()
         scaler.step(optimizer)
-        scaler.step(scheduler)
         scaler.update()
+
+        scheduler.step()
 
         epoch_loss += loss.item()
         _, predicted_labels = torch.max(raw_scores, 1)
