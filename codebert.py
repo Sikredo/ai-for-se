@@ -122,7 +122,7 @@ train_loader = DataLoader(train_dataset, sampler=sampler, batch_size=16)
 test_loader = DataLoader(test_dataset, batch_size=8)
 
 # optimizer for model parameters by computing gradient descent
-optimizer =AdamW(classifier.parameters(), lr=2e-4)
+optimizer =AdamW(classifier.parameters(), lr=2e-5)
 
 scaler = torch.cuda.amp.GradScaler()
 
