@@ -122,7 +122,7 @@ sample_weights = [1.0 if label == 0 else 3.0 for label in train_labels]  # Adjus
 sampler = WeightedRandomSampler(sample_weights, len(sample_weights))
 
 # Create DataLoader with sampler
-train_loader = DataLoader(train_dataset, sampler=sampler, batch_size=32)
+train_loader = DataLoader(train_dataset, sampler=sampler, batch_size=16)
 test_loader = DataLoader(test_dataset, batch_size=8)
 
 # optimizer for model parameters by computing gradient descent
