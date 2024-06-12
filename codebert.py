@@ -4,6 +4,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.utils import compute_class_weight
 from transformers import AutoTokenizer, AutoModel, get_linear_schedule_with_warmup, AdamW
 import torch
+import wandb
 
 from CDataLoader import CDataLoader
 from JavaDataLoader import JsonDataLoader
@@ -21,6 +22,7 @@ datafiles = [
 ]
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+wandb.init(project="vulnerability-detection") #log ROC curve to wandb to also see it when executing on server
 
 def get_training_and_test_data_per_function(input_json):
     output = []
@@ -203,6 +205,7 @@ plt.xlabel('False Positive Rate')
 plt.ylabel('True Positive Rate')
 plt.title('Receiver Operating Characteristic (ROC) Curve')
 plt.legend(loc="lower right")
+wandb.log({"roc_curve": wandb.Image(plt)})
 plt.show()
 
 # Checking the distribution of the labels
