@@ -161,8 +161,19 @@ for epoch in range(num_epochs):
         correct_predictions += (predicted_labels == labels).sum().item()
         total_predictions += labels.size(0)
 
+        wandb.log({
+            "Batch Training Loss": loss.item(),
+            "Epoch": epoch + 1
+        })
+
     epoch_loss /= len(train_loader)
     accuracy = correct_predictions / total_predictions
+
+    wandb.log({
+        "Epoch": epoch + 1,
+        "Training Loss": epoch_loss,
+        "Training Accuracy": accuracy
+    })
 
     print(f"Training: Loss={epoch_loss:.4f} | Accuracy={accuracy:.4f}\n")
 print("\n")
@@ -206,6 +217,12 @@ plt.title('Receiver Operating Characteristic (ROC) Curve')
 plt.legend(loc="lower right")
 wandb.log({"roc_curve": wandb.Image(plt)})
 plt.show()
+
+wandb.log({
+    "Test Accuracy": accuracy,
+    "MCC": mcc,
+    "ROC AUC": roc_auc
+})
 
 # Checking the distribution of the labels
 unique, counts = np.unique(train_labels.numpy(), return_counts=True)
