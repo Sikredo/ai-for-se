@@ -36,8 +36,8 @@ def get_training_and_test_data_per_function(input_json):
 vulnerabilities = list()
 dataloader = CDataLoader("./bigvul-data/data.json")
 vulnerabilities_ = dataloader.get_prepared_data()
-vulnerabilities.extend(vulnerabilities_[0:2500])
-vulnerabilities.extend(vulnerabilities_[-2500:])
+#vulnerabilities.extend(vulnerabilities_[0:2500])
+vulnerabilities.extend(vulnerabilities_[-9000:])
 training, test = get_training_and_test_data_per_function(vulnerabilities)
 
 tokenizer = AutoTokenizer.from_pretrained("microsoft/codebert-base")
@@ -132,7 +132,7 @@ scaler = torch.cuda.amp.GradScaler()
 
 
 classifier.train()
-num_epochs = 10
+num_epochs = 15
 number_of_training_steps = len(train_loader) * num_epochs
 scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0, num_training_steps=number_of_training_steps)
 for epoch in range(num_epochs):
