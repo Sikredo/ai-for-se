@@ -2,7 +2,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from sklearn.model_selection import train_test_split
 from sklearn.utils import compute_class_weight
-from transformers import AutoTokenizer, AutoModel, get_linear_schedule_with_warmup
+from transformers import AutoTokenizer, AutoModel, get_linear_schedule_with_warmup, AdamW
 import torch
 import wandb
 
@@ -125,7 +125,7 @@ train_loader = DataLoader(train_dataset, sampler=sampler, batch_size=16)
 test_loader = DataLoader(test_dataset, batch_size=8)
 
 # optimizer for model parameters by computing gradient descent
-optimizer = torch.optim.AdamW(classifier.parameters(), lr=2e-5)
+optimizer =AdamW(classifier.parameters(), lr=2e-5)
 
 scaler = torch.cuda.amp.GradScaler()
 
