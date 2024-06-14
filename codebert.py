@@ -22,7 +22,7 @@ datafiles = [
 ]
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-#wandb.init(project="vulnerability-detection") #log ROC curve to wandb to also see it when executing on server
+wandb.init(project="vulnerability-detection") #log ROC curve to wandb to also see it when executing on server
 
 def get_training_and_test_data_per_function(input_json):
     output = []
@@ -36,8 +36,8 @@ def get_training_and_test_data_per_function(input_json):
 vulnerabilities = list()
 dataloader = CDataLoader("./bigvul-data/data.json")
 vulnerabilities_ = dataloader.get_prepared_data()
-#vulnerabilities.extend(vulnerabilities_[0:2500])
-vulnerabilities.extend(vulnerabilities_[-100:])
+vulnerabilities.extend(vulnerabilities_[0:2500])
+vulnerabilities.extend(vulnerabilities_[-2500:])
 training, test = get_training_and_test_data_per_function(vulnerabilities)
 
 tokenizer = AutoTokenizer.from_pretrained("microsoft/codebert-base")
@@ -153,7 +153,7 @@ scaler = torch.cuda.amp.GradScaler()
 
 
 classifier.train()
-num_epochs = 3
+num_epochs = 10
 number_of_training_steps = len(train_loader) * num_epochs
 scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0, num_training_steps=number_of_training_steps)
 for epoch in range(num_epochs):
@@ -177,7 +177,7 @@ for epoch in range(num_epochs):
 
         scheduler.step()
 
-        #wandb.log({"Batch Loss": loss.item()})
+        wandb.log({"Batch Loss": loss.item()})
         _, predicted_labels = torch.max(raw_scores, 1)
         correct_predictions += (predicted_labels == labels).sum().item()
         total_predictions += labels.size(0)
@@ -223,7 +223,7 @@ plt.xlabel('False Positive Rate')
 plt.ylabel('True Positive Rate')
 plt.title('Receiver Operating Characteristic (ROC) Curve')
 plt.legend(loc="lower right")
-#wandb.log({"roc_curve": wandb.Image(plt)})
+wandb.log({"roc_curve": wandb.Image(plt)})
 plt.show()
 
 # Checking the distribution of the labels
