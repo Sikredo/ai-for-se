@@ -7,8 +7,5 @@
 #SBATCH --cpus-per-task=4                # Number of CPU cores per task
 #SBATCH --gpus=1                         # Number of GPUs required
 
-# Activate the conda environment
 conda activate ai-for-se-grp4
-
-# Run your Python script
-python3 ./codebert.py
+python3 ./classifier_training.py

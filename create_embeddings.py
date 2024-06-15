@@ -16,7 +16,6 @@ datafiles = [
 ]
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-#wandb.init(project="vulnerability-detection") #log ROC curve to wandb to also see it when executing on server
 
 def get_training_and_test_data_per_function(input_json):
     output = []
@@ -33,7 +32,7 @@ vulnerabilities = list()
 dataloader = CDataLoader("./bigvul-data/data.json")
 vulnerabilities_ = dataloader.get_prepared_data()
 #vulnerabilities.extend(vulnerabilities_[0:2500])
-vulnerabilities.extend(vulnerabilities_[-3000:])
+vulnerabilities.extend(vulnerabilities_[-9000:])
 training, test = get_training_and_test_data_per_function(vulnerabilities)
 
 tokenizer = AutoTokenizer.from_pretrained("microsoft/codebert-base")

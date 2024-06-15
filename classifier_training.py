@@ -5,9 +5,10 @@ from matplotlib import pyplot as plt
 from sklearn.metrics import accuracy_score, classification_report, roc_curve, auc, matthews_corrcoef
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
+import wandb
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-#wandb.init(project="vulnerability-detection") #log ROC curve to wandb to also see it when executing on server
+wandb.init(project="ai-for-sevulnerability-detection") #log ROC curve to wandb to also see it when executing on server
 
 class FocalLoss(torch.nn.Module):
     def __init__(self, alpha=1, gamma=2, reduction='mean'):
@@ -44,7 +45,6 @@ train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
 test_dataset = TensorDataset(test_embeddings, test_labels)
 test_loader = DataLoader(test_dataset, batch_size=8)
 
-# Define a simple classifier
 class SimpleExtractionClassifier(torch.nn.Module):
     def __init__(self, input_dim, num_classes, dropout_prob=0.1):
         super(SimpleExtractionClassifier, self).__init__()
@@ -66,7 +66,7 @@ classifier = SimpleExtractionClassifier(input_dim, num_classes, 0.3).to(device)
 optimizer = torch.optim.Adam(classifier.parameters(), lr=1e-5)
 scaler = torch.cuda.amp.GradScaler()
 
-num_epochs = 10
+num_epochs = 15
 number_of_training_steps = len(train_loader) * num_epochs
 #scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0, num_training_steps=number_of_training_steps)
 for epoch in range(num_epochs):
@@ -129,6 +129,7 @@ plt.xlabel('False Positive Rate')
 plt.ylabel('True Positive Rate')
 plt.title('Receiver Operating Characteristic (ROC) Curve')
 plt.legend(loc="lower right")
+wandb.log({"roc_curve": wandb.Image(plt)})
 plt.show()
 
 # Checking the distribution of the labels
