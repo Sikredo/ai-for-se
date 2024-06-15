@@ -116,7 +116,7 @@ train_dataset = VulnerabilityDataset(train_input_ids, train_attention_masks, tra
 #class_weights = torch.tensor(class_weights, dtype=torch.float).to(device)
 #weights = [class_weights[label] for label in train_labels.numpy()]
 weights = [1.0 if label == 0 else 3.0 for label in train_labels]
-sampler = WeightedRandomSampler(weights=sample_weights, num_samples=len(weights), replacement=True)
+sampler = WeightedRandomSampler(weights=weights, num_samples=len(weights), replacement=True)
 train_loader = DataLoader(train_dataset,sampler=sampler, batch_size=16)
 train_embeddings, train_labels = extract_embeddings(model, train_loader, device)
 # Save embeddings and labels
