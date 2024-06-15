@@ -41,7 +41,7 @@ test_labels = torch.load('test_labels.pt')
 
 # Create TensorDatasets and DataLoaders
 train_dataset = TensorDataset(train_embeddings, train_labels)
-train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
 
 test_dataset = TensorDataset(test_embeddings, test_labels)
 test_loader = DataLoader(test_dataset, batch_size=8)
