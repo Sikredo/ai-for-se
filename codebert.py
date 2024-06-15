@@ -5,7 +5,7 @@ from sklearn.utils import compute_class_weight
 from transformers import AutoTokenizer, AutoModel, get_linear_schedule_with_warmup, AdamW
 import torch
 import wandb
-
+import torch.nn.functional as F
 from CDataLoader import CDataLoader
 from JavaDataLoader import JsonDataLoader
 from tqdm import tqdm
@@ -36,8 +36,8 @@ def get_training_and_test_data_per_function(input_json):
 vulnerabilities = list()
 dataloader = CDataLoader("./bigvul-data/data.json")
 vulnerabilities_ = dataloader.get_prepared_data()
-#vulnerabilities.extend(vulnerabilities_[0:2500])
-vulnerabilities.extend(vulnerabilities_[-9000:])
+vulnerabilities.extend(vulnerabilities_[0:2500])
+vulnerabilities.extend(vulnerabilities_[-2500:])
 training, test = get_training_and_test_data_per_function(vulnerabilities)
 
 tokenizer = AutoTokenizer.from_pretrained("microsoft/codebert-base")
@@ -93,7 +93,28 @@ class_weights = compute_class_weight('balanced', classes=classes, y=train_labels
 class_weights = torch.tensor(class_weights, dtype=torch.float).to(device)
 
 # Update the loss function to include class weights
-loss_fn = torch.nn.CrossEntropyLoss(weight=class_weights)
+
+class FocalLoss(torch.nn.Module):
+    def __init__(self, alpha=1, gamma=2, reduction='mean'):
+        super(FocalLoss, self).__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+        self.reduction = reduction
+
+    def forward(self, inputs, targets):
+        BCE_loss = F.cross_entropy(inputs, targets, reduction='none')
+        pt = torch.exp(-BCE_loss)
+        F_loss = self.alpha * (1-pt)**self.gamma * BCE_loss
+
+        if self.reduction == 'mean':
+            return torch.mean(F_loss)
+        elif self.reduction == 'sum':
+            return torch.sum(F_loss)
+        else:
+            return F_loss
+
+#loss_fn = torch.nn.CrossEntropyLoss(weight=class_weights)
+loss_fn = FocalLoss(alpha=0.5, gamma=3)
 
 class VulnerabilityDataset(Dataset):
     def __init__(self, input_ids, attention_masks, labels):
@@ -116,13 +137,13 @@ train_dataset = VulnerabilityDataset(train_input_ids, train_attention_masks, tra
 test_dataset = VulnerabilityDataset(test_input_ids, test_attention_masks, test_labels)
 
 # Compute sample weights
-sample_weights = [1.0 if label == 0 else 3.0 for label in train_labels]  # Adjust the weight ratio as needed
+sample_weights = [class_weights[0] if label == 0 else class_weights[1] for label in train_labels]  # Adjust the weight ratio as needed
 
 # Create sampler
 sampler = WeightedRandomSampler(sample_weights, len(sample_weights))
 
 # Create DataLoader with sampler
-train_loader = DataLoader(train_dataset, sampler=sampler, batch_size=16)
+train_loader = DataLoader(train_dataset, sampler=sampler, batch_size=32)
 test_loader = DataLoader(test_dataset, batch_size=8)
 
 # optimizer for model parameters by computing gradient descent
@@ -132,12 +153,11 @@ scaler = torch.cuda.amp.GradScaler()
 
 
 classifier.train()
-num_epochs = 15
+num_epochs = 10
 number_of_training_steps = len(train_loader) * num_epochs
 scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0, num_training_steps=number_of_training_steps)
 for epoch in range(num_epochs):
     print("Epoch", epoch + 1, "/", num_epochs)
-    epoch_loss = 0.0
     correct_predictions = 0
     total_predictions = 0
 
@@ -157,15 +177,13 @@ for epoch in range(num_epochs):
 
         scheduler.step()
 
-        epoch_loss += loss.item()
+        wandb.log({"Batch Loss": loss.item()})
         _, predicted_labels = torch.max(raw_scores, 1)
         correct_predictions += (predicted_labels == labels).sum().item()
         total_predictions += labels.size(0)
 
-    epoch_loss /= len(train_loader)
     accuracy = correct_predictions / total_predictions
-
-    print(f"Training: Loss={epoch_loss:.4f} | Accuracy={accuracy:.4f}\n")
+    print(f"Training: Accuracy={accuracy:.4f}\n")
 print("\n")
 
 classifier.eval()
