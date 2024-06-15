@@ -26,8 +26,6 @@ def get_training_and_test_data_per_function(input_json):
     train, test = train_test_split(output, test_size=0.2, random_state=42)
     return train, test
 
-
-
 vulnerabilities = list()
 dataloader = CDataLoader("./bigvul-data/data.json")
 vulnerabilities_ = dataloader.get_prepared_data()
@@ -38,23 +36,6 @@ training, test = get_training_and_test_data_per_function(vulnerabilities)
 tokenizer = AutoTokenizer.from_pretrained("microsoft/codebert-base")
 model = AutoModel.from_pretrained("microsoft/codebert-base")
 model.to(device)
-
-class BERTClassifier(torch.nn.Module):
-    def __init__(self, bert_model, num_of_classes):
-        super(BERTClassifier, self).__init__()
-        self.bert = bert_model
-        self.dropout = torch.nn.Dropout(0.1)
-        self.classifier = torch.nn.Linear(self.bert.config.hidden_size, num_of_classes)
-
-    def forward(self, input_ids, attention_mask):
-        outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
-        pooled_output = outputs.pooler_output
-        pooled_output = self.dropout(pooled_output)
-        raw_scores = self.classifier(pooled_output)
-        return raw_scores
-
-classifier = BERTClassifier(model, num_of_classes=2)
-classifier.to(device)
 
 def prepare_input_data(data, max_length):
     input_ids = []
@@ -111,9 +92,15 @@ def extract_embeddings(model, dataloader, device):
             label = batch['label'].to(device)
 
             outputs = model(input_ids=input_ids, attention_mask=attention_mask)
-            pooled_output = outputs.pooler_output
+            last_hidden_state = outputs.last_hidden_state #last hidden state for getting embeddings for all tokens
 
-            embeddings.append(pooled_output.cpu())
+            #get mean embeddings for each line
+            attention_mask_expanded = attention_mask.unsqueeze(-1).expand(last_hidden_state.size()).float()
+            sum_embeddings = torch.sum(last_hidden_state * attention_mask_expanded, 1)
+            sum_mask = attention_mask_expanded.sum(1)
+            mean_embeddings = sum_embeddings / sum_mask
+
+            embeddings.append(mean_embeddings.cpu())
             labels.append(label.cpu())
 
     embeddings = torch.cat(embeddings)
@@ -130,7 +117,7 @@ class_weights = torch.tensor(class_weights, dtype=torch.float).to(device)
 sample_weights = [class_weights[label] for label in train_labels.numpy()]
 # Create sampler
 sampler = WeightedRandomSampler(weights=sample_weights, num_samples=len(sample_weights), replacement=True)
-train_loader = DataLoader(train_dataset,sampler=sampler, batch_size=32)
+train_loader = DataLoader(train_dataset,sampler=sampler, batch_size=16)
 train_embeddings, train_labels = extract_embeddings(model, train_loader, device)
 # Save embeddings and labels
 torch.save(train_embeddings, 'train_embeddings.pt')

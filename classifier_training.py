@@ -6,6 +6,7 @@ from sklearn.metrics import accuracy_score, classification_report, roc_curve, au
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 import wandb
+from transformers import get_linear_schedule_with_warmup
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 wandb.init(project="ai-for-sevulnerability-detection") #log ROC curve to wandb to also see it when executing on server
@@ -45,9 +46,9 @@ train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
 test_dataset = TensorDataset(test_embeddings, test_labels)
 test_loader = DataLoader(test_dataset, batch_size=8)
 
-class SimpleExtractionClassifier(torch.nn.Module):
+class SimpleVulnerabilityClassifier(torch.nn.Module):
     def __init__(self, input_dim, num_classes, dropout_prob=0.1):
-        super(SimpleExtractionClassifier, self).__init__()
+        super(SimpleVulnerabilityClassifier, self).__init__()
         self.fc1 = torch.nn.Linear(input_dim, 512)
         self.dropout = torch.nn.Dropout(dropout_prob)
         self.fc2 = torch.nn.Linear(512, num_classes)
@@ -60,15 +61,15 @@ class SimpleExtractionClassifier(torch.nn.Module):
 # Initialize the classifier
 input_dim = train_embeddings.size(1)
 num_classes = 2
-classifier = SimpleExtractionClassifier(input_dim, num_classes, 0.3).to(device)
+classifier = SimpleVulnerabilityClassifier(input_dim, num_classes, 0.1).to(device)
 
 # Defining optimizer and scaler
 optimizer = torch.optim.Adam(classifier.parameters(), lr=1e-5)
-scaler = torch.cuda.amp.GradScaler()
+#scaler = torch.cuda.amp.GradScaler()
 
 num_epochs = 15
 number_of_training_steps = len(train_loader) * num_epochs
-#scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0, num_training_steps=number_of_training_steps)
+scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0, num_training_steps=number_of_training_steps)
 for epoch in range(num_epochs):
     classifier.train()
     total_loss = 0
@@ -85,6 +86,7 @@ for epoch in range(num_epochs):
         loss = loss_fn(outputs, labels)
         loss.backward()
         optimizer.step()
+        scheduler.step()
 
         total_loss += loss.item()
         _, predicted_labels = torch.max(outputs, 1)
