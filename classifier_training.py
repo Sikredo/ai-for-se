@@ -101,6 +101,7 @@ for epoch in range(num_epochs):
 classifier.eval()
 all_predictions = []
 true_labels = []
+all_probabilities = []
 
 with torch.no_grad():
     for batch in tqdm(test_loader, desc="Testing"):
@@ -109,7 +110,10 @@ with torch.no_grad():
         labels = labels.to(device)
 
         outputs = classifier(embeddings)
+        probabilities = torch.softmax(outputs, dim=1)[:, 1]
         _, predicted_labels = torch.max(outputs, 1)
+
+        all_probabilities.extend(probabilities.cpu().numpy())
         all_predictions.extend(predicted_labels.cpu().numpy())
         true_labels.extend(labels.cpu().numpy())
 
@@ -120,7 +124,7 @@ print(classification_report(true_labels, all_predictions, target_names=["non-vul
 mcc = matthews_corrcoef(true_labels, all_predictions)
 print("MCC: ", mcc)
 
-fpr, tpr, _ = roc_curve(true_labels, all_predictions)
+fpr, tpr, _ = roc_curve(true_labels, all_probabilities)
 roc_auc = auc(fpr, tpr)
 plt.figure()
 plt.plot(fpr, tpr, color='darkorange', lw=2, label='ROC (area = %0.2f)' % roc_auc)
