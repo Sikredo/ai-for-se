@@ -9,4 +9,4 @@
 
 #IMPORTANT: First run get_embeddings.sh to compute the embeddings (just once)
 conda activate ai-for-se-grp4
-python3 ./create_embeddings.py
+python3 ./classifier_training.py

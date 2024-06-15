@@ -8,4 +8,4 @@
 #SBATCH --gpus=1                         # Number of GPUs required
 
 conda activate ai-for-se-grp4
-python3 ./classifier_training.py
+python3 ./create_embeddings.py
