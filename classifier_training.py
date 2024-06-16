@@ -67,7 +67,7 @@ classifier = SimpleVulnerabilityClassifier(input_dim, num_classes, 0.1).to(devic
 optimizer = AdamW(classifier.parameters(), lr=1e-4)
 #scaler = torch.cuda.amp.GradScaler()
 
-num_epochs = 30
+num_epochs = 50
 number_of_training_steps = len(train_loader) * num_epochs
 scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0, num_training_steps=number_of_training_steps)
 for epoch in range(num_epochs):
