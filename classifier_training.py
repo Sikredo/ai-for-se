@@ -7,6 +7,8 @@ from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 import wandb
 from transformers import get_linear_schedule_with_warmup, AdamW
+import torch.nn as nn
+import torch.nn.functional as F
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 wandb.init(project="ai-for-sevulnerability-detection") #log ROC curve to wandb to also see it when executing on server
@@ -46,25 +48,26 @@ train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
 test_dataset = TensorDataset(test_embeddings, test_labels)
 test_loader = DataLoader(test_dataset, batch_size=8)
 
-class SimpleVulnerabilityClassifier(torch.nn.Module):
-    def __init__(self, input_dim, num_classes, dropout_prob=0.1):
-        super(SimpleVulnerabilityClassifier, self).__init__()
-        self.fc1 = torch.nn.Linear(input_dim, 512) #input layer
-        self.fc2 = torch.nn.Linear(512, 256)  # hidden layer
-        self.fc3 = torch.nn.Linear(256, num_classes)  # output layer
-        self.dropout = torch.nn.Dropout(dropout_prob)
+
+class LSTMVulnerabilityClassifier(nn.Module):
+    def __init__(self, input_dim, hidden_dim, num_layers, num_classes, dropout_prob=0.1):
+        super(LSTMVulnerabilityClassifier, self).__init__()
+        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True, dropout=dropout_prob)
+        self.fc = nn.Linear(hidden_dim, num_classes)
+        self.dropout = nn.Dropout(dropout_prob)
 
     def forward(self, x):
-        x = torch.relu(self.fc1(x)) #activation function for input layer
+        x, _ = self.lstm(x)
+        x = x[:, -1, :]  # Get the last hidden state
         x = self.dropout(x)
-        x = torch.relu(self.fc2(x))  #activation function for hidden layer
-        x = self.dropout(x)
-        return self.fc3(x)
+        x = self.fc(x)
+        return x
 
-# Initialize the classifier
-input_dim = train_embeddings.size(1)
+input_dim = 768
+hidden_dim = 512
+num_layers = 2
 num_classes = 2
-classifier = SimpleVulnerabilityClassifier(input_dim, num_classes, 0.1).to(device)
+classifier = LSTMVulnerabilityClassifier(input_dim, hidden_dim, num_layers, num_classes, 0.1).to(device)
 
 # Defining optimizer and scaler
 optimizer = AdamW(classifier.parameters(), lr=1e-4)
@@ -85,7 +88,7 @@ for epoch in range(num_epochs):
         labels = labels.to(device)
 
         optimizer.zero_grad()
-        outputs = classifier(embeddings)
+        outputs = classifier(embeddings.unsqueeze(1))
         loss = loss_fn(outputs, labels)
         loss.backward()
         optimizer.step()
@@ -112,7 +115,7 @@ with torch.no_grad():
         embeddings = embeddings.to(device)
         labels = labels.to(device)
 
-        outputs = classifier(embeddings)
+        outputs = classifier(embeddings.unsqueeze(1))
         probabilities = torch.softmax(outputs, dim=1)[:, 1]
         _, predicted_labels = torch.max(outputs, 1)
 
