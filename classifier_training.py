@@ -11,7 +11,7 @@ import torch.nn as nn
 from imblearn.over_sampling import RandomOverSampler
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-wandb.init(project="ai-for-sevulnerability-detection") #log ROC curve to wandb to also see it when executing on server
+wandb.init(project="ai-for-se-vulnerability-detection-project") #log ROC curve to wandb to also see it when executing on server
 
 class FocalLoss(torch.nn.Module):
     def __init__(self, alpha=1, gamma=2, reduction='mean'):
@@ -55,7 +55,8 @@ train_labels_resampled = torch.tensor(train_labels_resampled).to(device)
 
 train_dataset = TensorDataset(train_embeddings_resampled, train_labels_resampled)
 train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
-
+test_dataset = TensorDataset(test_embeddings, test_labels)
+test_loader = DataLoader(test_dataset, batch_size=8)
 
 class LSTMVulnerabilityClassifier(nn.Module):
     def __init__(self, input_dim, hidden_dim, num_layers, num_classes, dropout_prob=0.1):
