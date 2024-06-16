@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-import torch.nn.functional as F
+import torch.nn.functional
 from matplotlib import pyplot as plt
 from sklearn.metrics import accuracy_score, classification_report, roc_curve, auc, matthews_corrcoef
 from torch.utils.data import DataLoader, TensorDataset
@@ -8,7 +8,7 @@ from tqdm import tqdm
 import wandb
 from transformers import get_linear_schedule_with_warmup, AdamW
 import torch.nn as nn
-import torch.nn.functional as F
+from imblearn.over_sampling import RandomOverSampler
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 wandb.init(project="ai-for-sevulnerability-detection") #log ROC curve to wandb to also see it when executing on server
@@ -21,7 +21,7 @@ class FocalLoss(torch.nn.Module):
         self.reduction = reduction
 
     def forward(self, inputs, targets):
-        BCE_loss = F.cross_entropy(inputs, targets, reduction='none')
+        BCE_loss = torch.nn.functional.cross_entropy(inputs, targets, reduction='none')
         pt = torch.exp(-BCE_loss)
         F_loss = self.alpha * (1-pt)**self.gamma * BCE_loss
 
@@ -45,8 +45,16 @@ test_labels = torch.load('test_labels.pt')
 train_dataset = TensorDataset(train_embeddings, train_labels)
 train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
 
-test_dataset = TensorDataset(test_embeddings, test_labels)
-test_loader = DataLoader(test_dataset, batch_size=8)
+# Oversample vul in trainig set
+train_embeddings_np = train_embeddings.cpu().numpy()
+train_labels_np = train_labels.cpu().numpy()
+ros = RandomOverSampler()
+train_embeddings_resampled, train_labels_resampled = ros.fit_resample(train_embeddings_np, train_labels_np)
+train_embeddings_resampled = torch.tensor(train_embeddings_resampled).to(device)
+train_labels_resampled = torch.tensor(train_labels_resampled).to(device)
+
+train_dataset = TensorDataset(train_embeddings_resampled, train_labels_resampled)
+train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
 
 
 class LSTMVulnerabilityClassifier(nn.Module):
