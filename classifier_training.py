@@ -67,7 +67,7 @@ class SimpleVulnerabilityClassifier(torch.nn.Module):
 # Initialize the classifier
 input_dim = train_embeddings.size(1)
 num_classes = 2
-classifier = SimpleVulnerabilityClassifier(input_dim, num_classes, 0.3).to(device)
+classifier = SimpleVulnerabilityClassifier(input_dim, num_classes, 0.1).to(device)
 
 # Defining optimizer and scaler
 optimizer = AdamW(classifier.parameters(), lr=1e-4)
