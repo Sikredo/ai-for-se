@@ -6,7 +6,7 @@ from sklearn.metrics import accuracy_score, classification_report, roc_curve, au
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 import wandb
-from transformers import get_linear_schedule_with_warmup
+from transformers import get_linear_schedule_with_warmup, AdamW
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 wandb.init(project="ai-for-sevulnerability-detection") #log ROC curve to wandb to also see it when executing on server
@@ -64,7 +64,7 @@ num_classes = 2
 classifier = SimpleVulnerabilityClassifier(input_dim, num_classes, 0.1).to(device)
 
 # Defining optimizer and scaler
-optimizer = torch.optim.Adam(classifier.parameters(), lr=1e-3)
+optimizer = AdamW(classifier.parameters(), lr=1e-4)
 #scaler = torch.cuda.amp.GradScaler()
 
 num_epochs = 30
