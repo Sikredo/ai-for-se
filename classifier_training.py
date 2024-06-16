@@ -49,19 +49,42 @@ test_dataset = TensorDataset(test_embeddings, test_labels)
 test_loader = DataLoader(test_dataset, batch_size=8)
 
 
+class Attention(nn.Module):
+    def __init__(self, hidden_dim):
+        super(Attention, self).__init__()
+        self.hidden_dim = hidden_dim
+        self.attn = nn.Linear(self.hidden_dim, 1)
+
+    def forward(self, lstm_output):
+        attn_weights = torch.tanh(self.attn(lstm_output)).squeeze(-1)
+        soft_attn_weights = F.softmax(attn_weights, 1)
+        new_hidden_state = torch.bmm(soft_attn_weights.unsqueeze(1), lstm_output).squeeze(1)
+        return new_hidden_state
+
+
 class LSTMVulnerabilityClassifier(nn.Module):
     def __init__(self, input_dim, hidden_dim, num_layers, num_classes, dropout_prob=0.1):
         super(LSTMVulnerabilityClassifier, self).__init__()
-        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True, dropout=dropout_prob)
-        self.fc = nn.Linear(hidden_dim, num_classes)
+        self.hidden_dim = hidden_dim
+        self.num_layers = num_layers
+        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True, dropout=dropout_prob,
+                            bidirectional=True)
+        self.attention = Attention(hidden_dim * 2)
+        self.fc = nn.Linear(hidden_dim * 2, num_classes)
         self.dropout = nn.Dropout(dropout_prob)
 
     def forward(self, x):
-        x, _ = self.lstm(x)
-        x = x[:, -1, :]  # Get the last hidden state
-        x = self.dropout(x)
-        x = self.fc(x)
-        return x
+        # Initialize hidden state with zeros
+        h0 = torch.zeros(self.num_layers * 2, x.size(0), self.hidden_dim).to(device)
+        c0 = torch.zeros(self.num_layers * 2, x.size(0), self.hidden_dim).to(device)
+
+        out, _ = self.lstm(x, (h0, c0)) # Forward propagation
+        out = self.attention(out) #attention mechanism
+
+        # Decode the hidden state of the last time step
+        out = self.dropout(out)
+        out = self.fc(out)
+        return out
 
 input_dim = 768
 hidden_dim = 512
@@ -69,9 +92,7 @@ num_layers = 2
 num_classes = 2
 classifier = LSTMVulnerabilityClassifier(input_dim, hidden_dim, num_layers, num_classes, 0.1).to(device)
 
-# Defining optimizer and scaler
 optimizer = AdamW(classifier.parameters(), lr=1e-4)
-#scaler = torch.cuda.amp.GradScaler()
 
 num_epochs = 30
 number_of_training_steps = len(train_loader) * num_epochs
