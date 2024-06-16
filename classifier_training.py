@@ -49,14 +49,13 @@ test_loader = DataLoader(test_dataset, batch_size=8)
 class SimpleVulnerabilityClassifier(torch.nn.Module):
     def __init__(self, input_dim, num_classes, dropout_prob=0.1):
         super(SimpleVulnerabilityClassifier, self).__init__()
-        self.fc1 = torch.nn.Linear(input_dim, 512)
+        self.fc = torch.nn.Linear(input_dim, num_classes)
         self.dropout = torch.nn.Dropout(dropout_prob)
-        self.fc2 = torch.nn.Linear(512, num_classes)
 
     def forward(self, x):
-        x = torch.relu(self.fc1(x))
         x = self.dropout(x)
-        return self.fc2(x)
+        return self.fc(x)
+
 
 # Initialize the classifier
 input_dim = train_embeddings.size(1)
