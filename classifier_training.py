@@ -64,7 +64,7 @@ num_classes = 2
 classifier = SimpleVulnerabilityClassifier(input_dim, num_classes, 0.1).to(device)
 
 # Defining optimizer and scaler
-optimizer = torch.optim.Adam(classifier.parameters(), lr=1e-5)
+optimizer = torch.optim.Adam(classifier.parameters(), lr=1e-3)
 #scaler = torch.cuda.amp.GradScaler()
 
 num_epochs = 30
