@@ -9,7 +9,6 @@ import wandb
 from transformers import get_linear_schedule_with_warmup, AdamW
 import torch.nn as nn
 import torch.nn.functional as F
-from imblearn.over_sampling import RandomOverSampler
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 wandb.init(project="ai-for-sevulnerability-detection") #log ROC curve to wandb to also see it when executing on server
@@ -42,15 +41,8 @@ train_labels = torch.load('train_labels.pt')
 test_embeddings = torch.load('test_embeddings.pt')
 test_labels = torch.load('test_labels.pt')
 
-# Oversample vul in training set
-train_embeddings_np = train_embeddings.cpu().numpy()
-train_labels_np = train_labels.cpu().numpy()
-ros = RandomOverSampler()
-train_embeddings_resampled, train_labels_resampled = ros.fit_resample(train_embeddings_np, train_labels_np)
-train_embeddings_resampled = torch.tensor(train_embeddings_resampled).to(device)
-train_labels_resampled = torch.tensor(train_labels_resampled).to(device)
-
-train_dataset = TensorDataset(train_embeddings_resampled, train_labels_resampled)
+# Create TensorDatasets and DataLoaders
+train_dataset = TensorDataset(train_embeddings, train_labels)
 train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
 
 test_dataset = TensorDataset(test_embeddings, test_labels)
