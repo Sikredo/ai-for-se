@@ -30,8 +30,6 @@ class FocalLoss(torch.nn.Module):
         else:
             return F_loss
 
-loss_fn = torch.nn.CrossEntropyLoss()
-#loss_fn = FocalLoss(alpha=0.25, gamma=2)
 
 # Load pre-computed embeddings and labels
 train_embeddings = torch.load('train_embeddings.pt')
@@ -45,6 +43,11 @@ train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
 
 test_dataset = TensorDataset(test_embeddings, test_labels)
 test_loader = DataLoader(test_dataset, batch_size=8)
+
+unique, counts = np.unique(train_labels.numpy(), return_counts=True)
+class_weights = torch.tensor([sum(counts) / c for c in counts], dtype=torch.float32).to(device)
+loss_fn = torch.nn.CrossEntropyLoss()
+#loss_fn = FocalLoss(alpha=0.25, gamma=2)
 
 class SimpleVulnerabilityClassifier(torch.nn.Module):
     def __init__(self, input_dim, num_classes, dropout_prob=0.1):
