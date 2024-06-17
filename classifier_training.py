@@ -7,33 +7,11 @@ from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 import wandb
 from transformers import get_linear_schedule_with_warmup, AdamW
-import torch.nn as nn
+import torch
 from imblearn.over_sampling import SMOTE
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 wandb.init(project="ai-for-se-vulnerability-detection-project") #log ROC curve to wandb to also see it when executing on server
-
-class FocalLoss(torch.nn.Module):
-    def __init__(self, alpha=1, gamma=2, reduction='mean'):
-        super(FocalLoss, self).__init__()
-        self.alpha = alpha
-        self.gamma = gamma
-        self.reduction = reduction
-
-    def forward(self, inputs, targets):
-        BCE_loss = torch.nn.functional.cross_entropy(inputs, targets, reduction='none')
-        pt = torch.exp(-BCE_loss)
-        F_loss = self.alpha * (1-pt)**self.gamma * BCE_loss
-
-        if self.reduction == 'mean':
-            return torch.mean(F_loss)
-        elif self.reduction == 'sum':
-            return torch.sum(F_loss)
-        else:
-            return F_loss
-
-#loss_fn = torch.nn.CrossEntropyLoss()
-loss_fn = FocalLoss(alpha=0.25, gamma=2)
 
 # Load pre-computed embeddings and labels
 train_embeddings = torch.load('train_embeddings.pt')
@@ -58,12 +36,12 @@ train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
 test_dataset = TensorDataset(test_embeddings, test_labels)
 test_loader = DataLoader(test_dataset, batch_size=8)
 
-class LSTMVulnerabilityClassifier(nn.Module):
+class LSTMVulnerabilityClassifier(torch.nn.Module):
     def __init__(self, input_dim, hidden_dim, num_layers, num_classes, dropout_prob=0.1):
         super(LSTMVulnerabilityClassifier, self).__init__()
-        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True, dropout=dropout_prob)
-        self.fc = nn.Linear(hidden_dim, num_classes)
-        self.dropout = nn.Dropout(dropout_prob)
+        self.lstm = torch.nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True, dropout=dropout_prob)
+        self.fc = torch.nn.Linear(hidden_dim, num_classes)
+        self.dropout = torch.nn.Dropout(dropout_prob)
 
     def forward(self, x):
         x, _ = self.lstm(x)
@@ -78,7 +56,7 @@ num_layers = 2
 num_classes = 2
 classifier = LSTMVulnerabilityClassifier(input_dim, hidden_dim, num_layers, num_classes, 0.1).to(device)
 
-# Defining optimizer and scaler
+loss_fn = torch.nn.CrossEntropyLoss()
 optimizer = AdamW(classifier.parameters(), lr=1e-4)
 
 num_epochs = 30
