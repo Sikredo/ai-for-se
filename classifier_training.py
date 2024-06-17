@@ -86,7 +86,7 @@ optimizer = AdamW(classifier.parameters(), lr=1e-4)
 
 num_epochs = 30
 number_of_training_steps = len(train_loader) * num_epochs
-scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0, num_training_steps=number_of_training_steps)
+#scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0, num_training_steps=number_of_training_steps)
 for epoch in range(num_epochs):
     classifier.train()
     total_loss = 0
@@ -103,7 +103,7 @@ for epoch in range(num_epochs):
         loss = loss_fn(outputs, labels)
         loss.backward()
         optimizer.step()
-        scheduler.step()
+        #scheduler.step()
 
         total_loss += loss.item()
         _, predicted_labels = torch.max(outputs, 1)
