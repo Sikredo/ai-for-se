@@ -85,9 +85,19 @@ for epoch in range(num_epochs):
         correct_predictions += (predicted_labels == labels).sum().item()
         total_predictions += labels.size(0)
 
+        wandb.log({
+            "Loss": loss.item()
+        })
+
     avg_loss = total_loss / len(train_loader)
     accuracy = correct_predictions / total_predictions
     print(f"Epoch {epoch+1}/{num_epochs}, Loss: {avg_loss:.4f}, Accuracy: {accuracy:.4f}")
+
+    wandb.log({
+        "Epoch": epoch + 1,
+        "Epoch Avg Training Loss": avg_loss,
+        "Training Accuracy": accuracy
+    })
 
 # Evaluation on test set
 classifier.eval()
