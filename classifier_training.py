@@ -8,9 +8,7 @@ from tqdm import tqdm
 import wandb
 from transformers import get_linear_schedule_with_warmup, AdamW
 import torch.nn as nn
-from imblearn.over_sampling import RandomOverSampler
 from imblearn.over_sampling import SMOTE
-from sklearn.utils.class_weight import compute_class_weight
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 wandb.init(project="ai-for-se-vulnerability-detection-project") #log ROC curve to wandb to also see it when executing on server
@@ -34,8 +32,8 @@ class FocalLoss(torch.nn.Module):
         else:
             return F_loss
 
-loss_fn = torch.nn.CrossEntropyLoss()
-#loss_fn = FocalLoss(alpha=0.25, gamma=2)
+#loss_fn = torch.nn.CrossEntropyLoss()
+loss_fn = FocalLoss(alpha=0.25, gamma=2)
 
 # Load pre-computed embeddings and labels
 train_embeddings = torch.load('train_embeddings.pt')
@@ -82,11 +80,10 @@ classifier = LSTMVulnerabilityClassifier(input_dim, hidden_dim, num_layers, num_
 
 # Defining optimizer and scaler
 optimizer = AdamW(classifier.parameters(), lr=1e-4)
-#scaler = torch.cuda.amp.GradScaler()
 
 num_epochs = 30
 number_of_training_steps = len(train_loader) * num_epochs
-#scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0, num_training_steps=number_of_training_steps)
+scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0, num_training_steps=number_of_training_steps)
 for epoch in range(num_epochs):
     classifier.train()
     total_loss = 0
@@ -103,7 +100,7 @@ for epoch in range(num_epochs):
         loss = loss_fn(outputs, labels)
         loss.backward()
         optimizer.step()
-        #scheduler.step()
+        scheduler.step()
 
         total_loss += loss.item()
         _, predicted_labels = torch.max(outputs, 1)
