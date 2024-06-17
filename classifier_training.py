@@ -9,6 +9,8 @@ import wandb
 from transformers import get_linear_schedule_with_warmup, AdamW
 import torch.nn as nn
 from imblearn.over_sampling import RandomOverSampler
+from imblearn.over_sampling import SMOTE
+from sklearn.utils.class_weight import compute_class_weight
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 wandb.init(project="ai-for-se-vulnerability-detection-project") #log ROC curve to wandb to also see it when executing on server
@@ -48,10 +50,10 @@ train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
 # Oversample vul in trainig set
 train_embeddings_np = train_embeddings.cpu().numpy()
 train_labels_np = train_labels.cpu().numpy()
-ros = RandomOverSampler()
-train_embeddings_resampled, train_labels_resampled = ros.fit_resample(train_embeddings_np, train_labels_np)
-train_embeddings_resampled = torch.tensor(train_embeddings_resampled).to(device)
-train_labels_resampled = torch.tensor(train_labels_resampled).to(device)
+smote = SMOTE(sampling_strategy=0.5)  # only 50% of oversampling because otherwise non-vul bad
+train_embeddings_resampled, train_labels_resampled = smote.fit_resample(train_embeddings_np, train_labels_np)
+train_embeddings_resampled = torch.tensor(train_embeddings_resampled).float().to(device)
+train_labels_resampled = torch.tensor(train_labels_resampled).long().to(device)
 
 train_dataset = TensorDataset(train_embeddings_resampled, train_labels_resampled)
 train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
