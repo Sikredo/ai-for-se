@@ -26,7 +26,7 @@ train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
 # Oversample vul in trainig set
 train_embeddings_np = train_embeddings.cpu().numpy()
 train_labels_np = train_labels.cpu().numpy()
-smote = SMOTE(sampling_strategy=0.5)  # only 50% of oversampling because otherwise non-vul bad
+smote = SMOTE(sampling_strategy=0.7)  # only 50% of oversampling because otherwise non-vul bad
 train_embeddings_resampled, train_labels_resampled = smote.fit_resample(train_embeddings_np, train_labels_np)
 train_embeddings_resampled = torch.tensor(train_embeddings_resampled).float().to(device)
 train_labels_resampled = torch.tensor(train_labels_resampled).long().to(device)
