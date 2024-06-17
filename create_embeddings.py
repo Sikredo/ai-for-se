@@ -1,8 +1,6 @@
-import numpy as np
 import torch
 from sklearn.model_selection import train_test_split
-from sklearn.utils import compute_class_weight
-from torch.utils.data import DataLoader, Dataset, WeightedRandomSampler
+from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 from transformers import AutoTokenizer, AutoModel
 
@@ -115,10 +113,11 @@ train_dataset = VulnerabilityDataset(train_input_ids, train_attention_masks, tra
 #class_weights = compute_class_weight('balanced', classes=classes, y=train_labels.numpy())
 #class_weights = torch.tensor(class_weights, dtype=torch.float).to(device)
 #weights = [class_weights[label] for label in train_labels.numpy()]
-weights = [1.0 if label == 0 else 3.0 for label in train_labels]
-sampler = WeightedRandomSampler(weights=weights, num_samples=len(weights), replacement=True)
-train_loader = DataLoader(train_dataset,sampler=sampler, batch_size=16)
+#weights = [1.0 if label == 0 else 3.0 for label in train_labels]
+#sampler = WeightedRandomSampler(weights=weights, num_samples=len(weights), replacement=True)
+train_loader = DataLoader(train_dataset, batch_size=16)
 train_embeddings, train_labels = extract_embeddings(model, train_loader, device)
+
 # Save embeddings and labels
 torch.save(train_embeddings, 'train_embeddings.pt')
 torch.save(train_labels, 'train_labels.pt')
