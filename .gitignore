@@ -1,3 +1,5 @@
 .idea
 .venv
 __pycache__/
+bigvul-data/data.json
+*.pt
