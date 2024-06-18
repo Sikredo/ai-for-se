@@ -80,7 +80,8 @@ class VulnerabilityDataset(Dataset):
 
 def extract_embeddings(model, dataloader, device):
     model.eval()
-    embeddings = []
+    embeddings_min = []
+    embeddings_max = []
     labels = []
 
     with torch.no_grad():
@@ -90,41 +91,40 @@ def extract_embeddings(model, dataloader, device):
             label = batch['label'].to(device)
 
             outputs = model(input_ids=input_ids, attention_mask=attention_mask)
-            last_hidden_state = outputs.last_hidden_state #last hidden state for getting embeddings for all tokens
+            last_hidden_state = outputs.last_hidden_state  # last hidden state for getting embeddings for all tokens
 
-            #get mean embeddings for each line
-            attention_mask_expanded = attention_mask.unsqueeze(-1).expand(last_hidden_state.size()).float()
-            sum_embeddings = torch.sum(last_hidden_state * attention_mask_expanded, 1)
-            sum_mask = attention_mask_expanded.sum(1)
-            mean_embeddings = sum_embeddings / sum_mask
+            # Get min and max embeddings for each line
+            min_embeddings, _ = torch.min(last_hidden_state, dim=1)
+            max_embeddings, _ = torch.max(last_hidden_state, dim=1)
 
-            embeddings.append(mean_embeddings.cpu())
+            embeddings_min.append(min_embeddings.cpu())
+            embeddings_max.append(max_embeddings.cpu())
             labels.append(label.cpu())
 
-    embeddings = torch.cat(embeddings)
+    embeddings_min = torch.cat(embeddings_min)
+    embeddings_max = torch.cat(embeddings_max)
     labels = torch.cat(labels)
 
-    return embeddings, labels
+    return embeddings_min, embeddings_max, labels
 
 # Create the dataset
 train_dataset = VulnerabilityDataset(train_input_ids, train_attention_masks, train_labels)
-# Compute class weights
-#classes = np.array([0, 1])
-#class_weights = compute_class_weight('balanced', classes=classes, y=train_labels.numpy())
-#class_weights = torch.tensor(class_weights, dtype=torch.float).to(device)
-#weights = [class_weights[label] for label in train_labels.numpy()]
-#weights = [1.0 if label == 0 else 3.0 for label in train_labels]
-#sampler = WeightedRandomSampler(weights=weights, num_samples=len(weights), replacement=True)
 train_loader = DataLoader(train_dataset, batch_size=16)
-train_embeddings, train_labels = extract_embeddings(model, train_loader, device)
+train_embeddings_min, train_embeddings_max, train_labels = extract_embeddings(model, train_loader, device)
 
 # Save embeddings and labels
-torch.save(train_embeddings, 'train_embeddings.pt')
+torch.save(train_embeddings_min, 'train_embeddings_min.pt')
+torch.save(train_embeddings_max, 'train_embeddings_max.pt')
+torch.save(train_labels, 'train_labels.pt')
+# Save embeddings and labels
+torch.save(train_embeddings_min, 'train_embeddings_min.pt')
+torch.save(train_embeddings_max, 'train_embeddings_max.pt')
 torch.save(train_labels, 'train_labels.pt')
 #
 # Repeat the process for the test set
 test_dataset = VulnerabilityDataset(test_input_ids, test_attention_masks, test_labels)
 test_loader = DataLoader(test_dataset, batch_size=32)
-test_embeddings, test_labels = extract_embeddings(model, test_loader, device)
-torch.save(test_embeddings, 'test_embeddings.pt')
+test_embeddings_min, test_embeddings_max, test_labels = extract_embeddings(model, test_loader, device)
+torch.save(test_embeddings_min, 'test_embeddings_min.pt')
+torch.save(test_embeddings_max, 'test_embeddings_max.pt')
 torch.save(test_labels, 'test_labels.pt')

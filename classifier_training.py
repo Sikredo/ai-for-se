@@ -14,10 +14,15 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 wandb.init(project="ai-for-se-vulnerability-detection-project") #log ROC curve to wandb to also see it when executing on server
 
 # Load pre-computed embeddings and labels
-train_embeddings = torch.load('train_embeddings.pt')
+train_embeddings_min = torch.load('train_embeddings_min.pt')
+train_embeddings_max = torch.load('train_embeddings_max.pt')
 train_labels = torch.load('train_labels.pt')
-test_embeddings = torch.load('test_embeddings.pt')
+test_embeddings_min = torch.load('test_embeddings_min.pt')
+test_embeddings_max = torch.load('test_embeddings_max.pt')
 test_labels = torch.load('test_labels.pt')
+
+train_embeddings = torch.cat((train_embeddings_min, train_embeddings_max), dim=1)
+test_embeddings = torch.cat((test_embeddings_min, test_embeddings_max), dim=1)
 
 # Create TensorDatasets and DataLoaders
 train_dataset = TensorDataset(train_embeddings, train_labels)
@@ -50,7 +55,7 @@ class LSTMVulnerabilityClassifier(torch.nn.Module):
         x = self.fc(x)
         return x
 
-input_dim = 768
+input_dim = 768 * 2
 hidden_dim = 512
 num_layers = 2
 num_classes = 2
