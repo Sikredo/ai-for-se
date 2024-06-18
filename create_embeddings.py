@@ -27,7 +27,7 @@ def get_training_and_test_data_per_function(input_json):
 vulnerabilities = list()
 dataloader = CDataLoader("./bigvul-data/data.json")
 vulnerabilities_ = dataloader.get_prepared_data()
-vulnerabilities.extend(vulnerabilities_[0:9000])
+#vulnerabilities.extend(vulnerabilities_[0:9000])
 vulnerabilities.extend(vulnerabilities_[-9000:])
 training, test = get_training_and_test_data_per_function(vulnerabilities)
 
