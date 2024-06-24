@@ -6,6 +6,9 @@ from transformers import AutoTokenizer, AutoModel
 
 from CDataLoader import CDataLoader
 
+NUMBER_OF_FUNCTIONS_FROM_END_OF_FILE = 9000 #last 9000 have vul line
+NUMBER_OF_FUNCTIONS_FROM_BEGINNING_OF_FILE = 2500
+
 datafiles = [
     "./data/original_method.json",
     "./data/rename_only.json",
@@ -27,8 +30,8 @@ def get_training_and_test_data_per_function(input_json):
 vulnerabilities = list()
 dataloader = CDataLoader("./bigvul-data/data.json")
 vulnerabilities_ = dataloader.get_prepared_data()
-#vulnerabilities.extend(vulnerabilities_[0:2500])
-vulnerabilities.extend(vulnerabilities_[-9000:])
+#vulnerabilities.extend(vulnerabilities_[0:NUMBER_OF_FUNCTIONS_FROM_BEGINNING_OF_FILE])
+vulnerabilities.extend(vulnerabilities_[-NUMBER_OF_FUNCTIONS_FROM_END_OF_FILE:])
 training, test = get_training_and_test_data_per_function(vulnerabilities)
 
 tokenizer = AutoTokenizer.from_pretrained("microsoft/codebert-base")
@@ -106,15 +109,8 @@ def extract_embeddings(model, dataloader, device):
 
     return embeddings, labels
 
-# Create the dataset
+# Training Data Set
 train_dataset = VulnerabilityDataset(train_input_ids, train_attention_masks, train_labels)
-# Compute class weights
-#classes = np.array([0, 1])
-#class_weights = compute_class_weight('balanced', classes=classes, y=train_labels.numpy())
-#class_weights = torch.tensor(class_weights, dtype=torch.float).to(device)
-#weights = [class_weights[label] for label in train_labels.numpy()]
-#weights = [1.0 if label == 0 else 3.0 for label in train_labels]
-#sampler = WeightedRandomSampler(weights=weights, num_samples=len(weights), replacement=True)
 train_loader = DataLoader(train_dataset, batch_size=16)
 train_embeddings, train_labels = extract_embeddings(model, train_loader, device)
 

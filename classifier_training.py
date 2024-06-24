@@ -10,8 +10,19 @@ from transformers import get_linear_schedule_with_warmup, AdamW
 import torch
 from imblearn.over_sampling import SMOTE
 
+#Hyperparameters (tuned):
+OVERSAMPLING_AMOUNT_OF_VUL_LINES = 0.5 # only 50% of oversampling because otherwise non-vul recall is bad
+LEARNING_RATE = 1e-4
+NUMBER_OF_EPOCHS = 30
+TRAINING_BATCH_SIZE = 16
+TESTING_BATCH_SIZE = 9
+DROPOUT = 0.1
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 wandb.init(project="ai-for-se-vulnerability-detection-project") #log ROC curve to wandb to also see it when executing on server
+
+
+#------- LOAD PRE-COMPUTED DATA SETS ----------
 
 # Load pre-computed embeddings and labels
 train_embeddings = torch.load('train_embeddings.pt')
@@ -19,25 +30,24 @@ train_labels = torch.load('train_labels.pt')
 test_embeddings = torch.load('test_embeddings.pt')
 test_labels = torch.load('test_labels.pt')
 
-# Create TensorDatasets and DataLoaders
-train_dataset = TensorDataset(train_embeddings, train_labels)
-train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
-
 # Oversample vul in trainig set
 train_embeddings_np = train_embeddings.cpu().numpy()
 train_labels_np = train_labels.cpu().numpy()
-smote = SMOTE(sampling_strategy=0.5)  # only 50% of oversampling because otherwise non-vul bad
+smote = SMOTE(sampling_strategy=OVERSAMPLING_AMOUNT_OF_VUL_LINES)
 train_embeddings_resampled, train_labels_resampled = smote.fit_resample(train_embeddings_np, train_labels_np)
 train_embeddings_resampled = torch.tensor(train_embeddings_resampled).float().to(device)
 train_labels_resampled = torch.tensor(train_labels_resampled).long().to(device)
 
 train_dataset = TensorDataset(train_embeddings_resampled, train_labels_resampled)
-train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
+train_loader = DataLoader(train_dataset, batch_size=TRAINING_BATCH_SIZE, shuffle=True)
 test_dataset = TensorDataset(test_embeddings, test_labels)
-test_loader = DataLoader(test_dataset, batch_size=8)
+test_loader = DataLoader(test_dataset, batch_size=TESTING_BATCH_SIZE)
+
+
+#------- MODEL DEFINITION ----------
 
 class LSTMVulnerabilityClassifier(torch.nn.Module):
-    def __init__(self, input_dim, hidden_dim, num_layers, num_classes, dropout_prob=0.1):
+    def __init__(self, input_dim, hidden_dim, num_layers, num_classes, dropout_prob=DROPOUT):
         super(LSTMVulnerabilityClassifier, self).__init__()
         self.lstm = torch.nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True, dropout=dropout_prob)
         self.fc = torch.nn.Linear(hidden_dim, num_classes)
@@ -54,15 +64,17 @@ input_dim = 768
 hidden_dim = 512
 num_layers = 2
 num_classes = 2
-classifier = LSTMVulnerabilityClassifier(input_dim, hidden_dim, num_layers, num_classes, 0.1).to(device)
+classifier = LSTMVulnerabilityClassifier(input_dim, hidden_dim, num_layers, num_classes).to(device)
+
+
+#------- TRAINING THE MODEL ----------
 
 loss_fn = torch.nn.CrossEntropyLoss()
-optimizer = AdamW(classifier.parameters(), lr=1e-4)
+optimizer = AdamW(classifier.parameters(), lr=LEARNING_RATE)
 
-num_epochs = 30
-number_of_training_steps = len(train_loader) * num_epochs
+number_of_training_steps = len(train_loader) * NUMBER_OF_EPOCHS
 scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0, num_training_steps=number_of_training_steps)
-for epoch in range(num_epochs):
+for epoch in range(NUMBER_OF_EPOCHS):
     classifier.train()
     total_loss = 0
     correct_predictions = 0
@@ -86,12 +98,12 @@ for epoch in range(num_epochs):
         total_predictions += labels.size(0)
 
         wandb.log({
-            "Loss": loss.item()
+           "Loss": loss.item()
         })
 
     avg_loss = total_loss / len(train_loader)
     accuracy = correct_predictions / total_predictions
-    print(f"Epoch {epoch+1}/{num_epochs}, Loss: {avg_loss:.4f}, Accuracy: {accuracy:.4f}")
+    print(f"Epoch {epoch+1}/{NUMBER_OF_EPOCHS}, Loss: {avg_loss:.4f}, Accuracy: {accuracy:.4f}")
 
     wandb.log({
         "Epoch": epoch + 1,
@@ -99,7 +111,9 @@ for epoch in range(num_epochs):
         "Training Accuracy": accuracy
     })
 
-# Evaluation on test set
+
+#------- EVALUATION ON TEST SET ----------
+
 classifier.eval()
 all_predictions = []
 true_labels = []
